@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v11";
+const APP_VER = "v12";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -1613,7 +1613,6 @@ function renderReport() {
   }
 
   $("#reportSummary").innerHTML = html;
-  $("#reportPreview").textContent = buildReport();
 }
 
 async function copyReport() {
