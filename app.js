@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v12";
+const APP_VER = "v13";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -222,7 +222,9 @@ function renderHome() {
 }
 
 function renderOrders() {
-  const list = filtered("orders");
+  let list = filtered("orders");
+  const q = ($("#orderSearch") && $("#orderSearch").value || "").trim();
+  if (q) list = list.filter(o => (o.client || "").includes(q) || (o.service || "").includes(q) || (o.details || "").includes(q));
   $("#selectModeBtn").innerHTML = selectMode ? "✕ جاهز" : "تحديد متعدد";
   renderSelectBar();
   $("#ordersList").innerHTML = list.length ? list.slice().reverse().map(o => {
@@ -276,7 +278,10 @@ function renderPayments() {
         <div class="amt">${fmtMoney(p.amount)}</div>
       </div>
       ${p.details ? `<div class="details">${esc(p.details)}</div>` : ""}
-      <button class="rm" onclick='delPayment("${p.id}")'>حذف</button>
+      <div class="actions-inline">
+        <button class="btn btn-dark btn-slim" onclick='showPaymentModal("", "", "${p.id}")'>✏️ تعديل</button>
+        <button class="rm" onclick='delPayment("${p.id}")'>حذف</button>
+      </div>
     </div>`;
   }).join("") : `<div class="empty">لا توجد مدفوعات مسجلة.</div>`;
 }
@@ -296,12 +301,17 @@ function renderExpenses() {
         <div class="amt">${fmtMoney(x.amount)}</div>
       </div>
       ${x.details ? `<div class="details">${esc(x.details)}</div>` : ""}
-      <button class="rm" onclick='delExpense("${x.id}")'>حذف</button>
+      <div class="actions-inline">
+        <button class="btn btn-dark btn-slim" onclick='showExpenseModal("${x.id}")'>✏️ تعديل</button>
+        <button class="rm" onclick='delExpense("${x.id}")'>حذف</button>
+      </div>
     </div>`).join("") : `<div class="empty">لا توجد مصروفات مسجلة.</div>`;
 }
 
 function renderClients() {
-  const list = state.clients.slice().sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  let list = state.clients.slice().sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  const q = ($("#clientSearch") && $("#clientSearch").value || "").trim();
+  if (q) list = list.filter(c => (c.name || "").includes(q) || (c.phone || "").includes(q));
   $("#clientsList").innerHTML = list.length ? list.map(c => {
     const t = clientTotals(c.id);
     return `
@@ -328,6 +338,28 @@ function fillSettings() {
   $("#setAccountant").value = s.accountant || "";
   $("#setCompany").value = s.company || "";
   $("#setCurrency").value = s.currency || "ر.س";
+  const tip = $("#lastBackupTip");
+  if (tip) {
+    if (s.lastBackup) {
+      const d = new Date(s.lastBackup);
+      const days = Math.floor((Date.now() - s.lastBackup) / 86400000);
+      tip.textContent = `💾 آخر نسخة احتياطية: ${d.toLocaleDateString("ar-EG-u-nu-latn", { day: "numeric", month: "short", year: "numeric" })} (منذ ${days} يوم)`;
+      tip.style.color = days > 7 ? "var(--bad)" : "var(--muted)";
+    } else {
+      tip.textContent = "⚠️ لم تأخذ نسخة احتياطية بعد — خذ واحدة الآن لحماية بياناتك.";
+      tip.style.color = "var(--bad)";
+    }
+  }
+}
+
+let backupReminded = false;
+function maybeBackupReminder() {
+  if (backupReminded) return;
+  backupReminded = true;
+  const last = state.settings.lastBackup || 0;
+  if (Date.now() - last > 7 * 86400000) {
+    setTimeout(() => toast("💾 تذكير: خذ نسخة احتياطية من تبويب التقرير"), 2500);
+  }
 }
 
 function saveSettings() {
@@ -352,6 +384,7 @@ function refresh() {
   renderSelectBar();
 }
 refresh();
+maybeBackupReminder();
 
 /* ---------- Modals ---------- */
 function openSheet(html) {
@@ -367,11 +400,11 @@ function closeSheet() {
 }
 $("#overlay").addEventListener("click", e => { if (e.target === $("#overlay")) closeSheet(); });
 
-function orderSelectOptions() {
+function orderSelectOptions(selId) {
   const remaining = o => Number(o.amount) - paidForOrder(o.id);
-  const list = state.orders.filter(o => remaining(o) > 0);
+  const list = state.orders.filter(o => remaining(o) > 0 || (selId && o.id === selId));
   return `<option value="">— اختياري: ربط باوردر —</option>` +
-    list.map(o => `<option value="${o.id}">${esc(o.details || o.service || "اوردر")}</option>`).join("");
+    list.map(o => `<option value="${o.id}" ${selId === o.id ? "selected" : ""}>${esc(o.details || o.service || "اوردر")}</option>`).join("");
 }
 
 const SERVICE_OPTIONS = ["تصوير فوتو", "تصوير فيديو", "مونتاج"];
@@ -710,42 +743,48 @@ function showOrderModal(id, clientId) {
   toggleNew();
 }
 
-function showPaymentModal(orderId, clientId) {
-  const order = orderId ? state.orders.find(x => x.id === orderId) : null;
-  const prefill = order ? order.client : (clientId ? clientName(clientId) : "");
+function showPaymentModal(orderId, clientId, payId) {
+  const ex = payId ? state.payments.find(x => x.id === payId) : null;
+  const order = ex ? state.orders.find(x => x.id === ex.orderId) : (orderId ? state.orders.find(x => x.id === orderId) : null);
+  const prefill = ex ? ex.client : (order ? order.client : (clientId ? clientName(clientId) : ""));
+  const methods = ["نقدي", "تحويل بنكي", "شبكة", "آبل باي", "تحصيلات"];
+  const mSel = ex ? ex.method : "";
+  const oSel = ex ? ex.orderId : (order ? order.id : "");
   openSheet(`
-    <h2>💰 تسجيل دفعة</h2>
+    <h2>${ex ? "✏️ تعديل دفعة" : "💰 تسجيل دفعة"}</h2>
     <div class="field"><label>اسم العميل *</label><input id="pClient" value="${esc(prefill)}" placeholder="مثال: أم محمد"></div>
-    <div class="field"><label>المبلغ *</label><input id="pAmount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+    <div class="field"><label>المبلغ *</label><input id="pAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${ex ? ex.amount : ""}" placeholder="0"></div>
     <div class="field-row">
       <div class="field"><label>طريقة الدفع</label><select id="pMethod">
         <option value="">— اختر —</option>
-        ${["نقدي", "تحويل بنكي", "شبكة", "آبل باي", "تحصيلات"].map(s => `<option>${s}</option>`).join("")}
+        ${methods.map(s => `<option ${mSel === s ? "selected" : ""}>${s}</option>`).join("")}
       </select></div>
-      <div class="field"><label>التاريخ</label><input id="pDate" type="date" value="${todayStr()}"></div>
+      <div class="field"><label>التاريخ</label><input id="pDate" type="date" value="${ex ? ex.date : todayStr()}"></div>
     </div>
-    ${orderId
-      ? `<input type="hidden" id="pOrder" value="${orderId}">`
-      : `<div class="field"><label>ربط باوردر (اختياري)</label><select id="pOrder">${orderSelectOptions()}</select></div>`}
-    <div class="field"><label>ملاحظات</label><input id="pDetails" placeholder="دفعة مقدمة، دفعة شفهية..."></div>
-    <button class="btn btn-primary btn-block" onclick="savePayment()">حفظ الدفعة</button>
+    ${oSel && order
+      ? `<input type="hidden" id="pOrder" value="${oSel}">`
+      : `<div class="field"><label>ربط باوردر (اختياري)</label><select id="pOrder">${orderSelectOptions(oSel)}</select></div>`}
+    <div class="field"><label>ملاحظات</label><input id="pDetails" value="${esc(ex ? ex.details : "")}" placeholder="دفعة مقدمة، دفعة شفهية..."></div>
+    <button class="btn btn-primary btn-block" onclick="savePayment('${ex ? ex.id : ""}')">${ex ? "حفظ التعديل" : "حفظ الدفعة"}</button>
   `);
 }
 
-function showExpenseModal() {
+function showExpenseModal(id) {
+  const ex = id ? state.expenses.find(x => x.id === id) : null;
+  const cats = ["بنزين", "طعام", "تصليح معدات", "طباعة صور", "شراء معدات", "أخرى"];
+  const payers = ["أنا", "الشركة", "أخرى"];
   openSheet(`
-    <h2>🧾 تسجيل مصروف</h2>
+    <h2>${ex ? "✏️ تعديل مصروف" : "🧾 تسجيل مصروف"}</h2>
     <div class="field"><label>نوع المصروف</label><select id="xCat">
-      <option>بنزين</option><option>طعام</option><option>تصليح معدات</option>
-      <option>طباعة صور</option><option>شراء معدات</option><option>أخرى</option>
+      ${cats.map(s => `<option ${ex && ex.category === s ? "selected" : ""}>${s}</option>`).join("")}
     </select></div>
-    <div class="field"><label>المبلغ *</label><input id="xAmount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+    <div class="field"><label>المبلغ *</label><input id="xAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${ex ? ex.amount : ""}" placeholder="0"></div>
     <div class="field-row">
-      <div class="field"><label>مَن دفعها</label><select id="xPaidBy"><option>أنا</option><option>الشركة</option><option>أخرى</option></select></div>
-      <div class="field"><label>التاريخ</label><input id="xDate" type="date" value="${todayStr()}"></div>
+      <div class="field"><label>مَن دفعها</label><select id="xPaidBy">${payers.map(s => `<option ${ex && ex.paidBy === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div class="field"><label>التاريخ</label><input id="xDate" type="date" value="${ex ? ex.date : todayStr()}"></div>
     </div>
-    <div class="field"><label>تفاصيل</label><textarea id="xDetails" placeholder="وصف المصروف..."></textarea></div>
-    <button class="btn btn-primary btn-block" onclick="saveExpense()">حفظ المصروف</button>
+    <div class="field"><label>تفاصيل</label><textarea id="xDetails" placeholder="وصف المصروف...">${esc(ex ? ex.details : "")}</textarea></div>
+    <button class="btn btn-primary btn-block" onclick="saveExpense('${ex ? ex.id : ""}')">${ex ? "حفظ التعديل" : "حفظ المصروف"}</button>
   `);
 }
 
@@ -791,42 +830,52 @@ function saveOrder(id) {
   toast("تم حفظ الاوردر");
 }
 
-function savePayment() {
+function savePayment(id) {
   const client = $("#pClient").value.trim();
   const amount = parseFloat($("#pAmount").value);
   if (!client) return toast("اكتب اسم العميل");
   if (!(amount > 0)) return toast("اكتب مبلغ صحيح");
   const orderId = $("#pOrder") ? $("#pOrder").value : "";
-  state.payments.push({
-    id: uid(),
+  const data = {
     client,
     amount,
     method: $("#pMethod").value,
     date: $("#pDate").value || todayStr(),
     orderId: orderId || "",
     details: $("#pDetails").value.trim()
-  });
+  };
+  if (id) {
+    const p = state.payments.find(x => x.id === id);
+    if (p) Object.assign(p, data);
+  } else {
+    state.payments.push(Object.assign({ id: uid() }, data));
+  }
   save();
   closeSheet();
   refresh();
-  toast("تم تسجيل الدفعة");
+  toast(id ? "تم حفظ التعديل" : "تم تسجيل الدفعة");
 }
 
-function saveExpense() {
+function saveExpense(id) {
   const amount = parseFloat($("#xAmount").value);
   if (!(amount > 0)) return toast("اكتب مبلغ صحيح");
-  state.expenses.push({
-    id: uid(),
+  const data = {
     category: $("#xCat").value,
     amount,
     paidBy: $("#xPaidBy").value,
     date: $("#xDate").value || todayStr(),
     details: $("#xDetails").value.trim()
-  });
+  };
+  if (id) {
+    const x = state.expenses.find(e => e.id === id);
+    if (x) Object.assign(x, data);
+  } else {
+    state.expenses.push(Object.assign({ id: uid() }, data));
+  }
   save();
   closeSheet();
   refresh();
-  toast("تم تسجيل المصروف");
+  toast(id ? "تم حفظ التعديل" : "تم تسجيل المصروف");
 }
 
 function showOrderActions(id) {
@@ -1668,6 +1717,8 @@ function exportCSV() {
 
 function exportJSON() {
   saveSettings();
+  state.settings.lastBackup = Date.now();
+  save();
   const txt = JSON.stringify(state, null, 1);
   exportFile("نسخة-احتياطية-دفتر-التصوير.txt", "text/plain;charset=utf-8", txt);
   toast("تم تصدير النسخة الاحتياطية");

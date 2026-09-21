@@ -37,6 +37,7 @@
         <button id="selectModeBtn" class="btn btn-dark btn-slim" onclick="toggleSelectMode()">تحديد</button>
       </div>
     </div>
+    <input id="orderSearch" class="search-box" placeholder="🔍 بحث باسم العميل أو الخدمة..." oninput="renderOrders()">
     <div id="ordersList"></div>
   </section>
 
@@ -47,6 +48,7 @@
         <button class="btn btn-primary btn-slim" onclick="showClientModal()">+ عميل</button>
       </div>
     </div>
+    <input id="clientSearch" class="search-box" placeholder="🔍 بحث باسم العميل أو الجوال..." oninput="renderClients()">
     <div class="tip" style="margin:0 4px 10px;">اضغط على أي عميل لفتح بطاقته وتفاصيل اوردراته.</div>
     <div id="clientsList"></div>
   </section>
@@ -101,6 +103,7 @@
     </div>
 
     <div class="section-title">💽 نسخ / استرجاع البيانات</div>
+    <div class="tip" id="lastBackupTip" style="margin:0 4px 8px;"></div>
     <div class="actions">
       <button class="btn btn-dark" onclick="exportCSV()">ملف Excel (CSV)</button>
       <button class="btn btn-dark" onclick="exportJSON()">نسخة احتياطية</button>

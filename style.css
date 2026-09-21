@@ -153,6 +153,13 @@ header h1 span { color: var(--accent); -webkit-text-fill-color: var(--accent); }
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-bottom: 12px;
 }
+.search-box {
+  width: 100%; background: rgba(11, 18, 32, .75); border: 1px solid var(--border); color: var(--text);
+  border-radius: 13px; padding: 11px 14px; font-size: 14px; font-family: inherit; margin-bottom: 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.search-box:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(251, 191, 36, .15); }
+.search-box::placeholder { color: var(--muted); }
 .list-toolbar .section-title { margin: 0; }
 .toolbar-actions { display: flex; gap: 8px; }
 
