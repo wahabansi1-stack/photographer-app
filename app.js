@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v9";
+const APP_VER = "v10";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -374,7 +374,7 @@ function orderSelectOptions() {
     list.map(o => `<option value="${o.id}">${esc(o.details || o.service || "اوردر")}</option>`).join("");
 }
 
-const SERVICE_OPTIONS = ["تصوير مناسبة", "تصوير استوديو", "تصوير منتجات", "تصوير حفلات", "صور هوية", "تجعيد", "مزود"];
+const SERVICE_OPTIONS = ["تصوير فوتو", "تصوير فيديو", "مونتاج"];
 
 function showClientModal(id) {
   const c = id ? clientById(id) : null;
