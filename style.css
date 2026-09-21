@@ -329,3 +329,24 @@ nav button.active .ic { transform: translateY(-1px) scale(1.1); }
 .ledger-item .details { background: #eef2f7; color: #475569; border: 1px solid #e2e8f0; }
 .ledger-item .badge { background: #e0f2fe; border-color: #bae6fd; color: #0369a1; }
 .ledger-empty { text-align: center; color: #94a3b8; padding: 16px 8px; font-size: 13px; }
+
+/* ---------- Professional report ---------- */
+.rep-preview {
+  background: linear-gradient(180deg, rgba(38, 52, 73, .85), rgba(24, 34, 56, .9));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 15px; font-size: 13px; line-height: 1.9;
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 340px; overflow-y: auto; margin-top: 10px;
+  box-shadow: var(--shadow); color: var(--text);
+}
+.rep-card {
+  background: linear-gradient(180deg, rgba(38, 52, 73, .85), rgba(24, 34, 56, .9));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 4px 15px; margin-top: 4px; box-shadow: var(--shadow);
+}
+.svc-row { padding: 11px 0; border-bottom: 1px dashed var(--border); }
+.svc-row:last-child { border-bottom: none; }
+.svc-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; margin-bottom: 7px; }
+.svc-meta { color: var(--muted); font-weight: 700; font-size: 12px; }
+.svc-bar { height: 8px; background: rgba(255, 255, 255, .08); border-radius: 99px; overflow: hidden; }
+.svc-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); }

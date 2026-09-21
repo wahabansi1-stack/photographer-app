@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v10";
+const APP_VER = "v11";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -1575,6 +1575,44 @@ function buildReport() {
 }
 
 function renderReport() {
+  const d = reportData();
+  const oSum = d.orders.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const pSum = d.payments.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const eSum = d.expenses.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const due = oSum - pSum;
+  const net = pSum - eSum;
+  const rate = oSum > 0 ? Math.min(100, Math.round((pSum / oSum) * 100)) : 0;
+
+  let html = `<div class="stats">
+    <div class="stat total orders"><div class="lbl">📦 إجمالي الأوردرات · ${d.orders.length}</div><div class="val">${fmtMoney(oSum)}</div></div>
+    <div class="stat ok"><div class="lbl">💰 المحصّل · ${d.payments.length}</div><div class="val">${fmtMoney(pSum)}</div></div>
+    <div class="stat exp"><div class="lbl">🧾 المصروفات · ${d.expenses.length}</div><div class="val">${fmtMoney(eSum)}</div></div>
+    <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val">${fmtMoney(due > 0 ? due : 0)}</div></div>
+    <div class="stat ${net >= 0 ? "ok" : "exp"}"><div class="lbl">📊 صافي الربح</div><div class="val">${fmtMoney(net)}</div></div>
+    <div class="stat"><div class="lbl">🎯 نسبة التحصيل</div><div class="val">${rate}<small>%</small></div></div>
+  </div>`;
+
+  const bySvc = {};
+  d.orders.forEach(o => {
+    const k = (o.service || "بدون تصنيف").trim() || "بدون تصنيف";
+    if (!bySvc[k]) bySvc[k] = { n: 0, sum: 0 };
+    bySvc[k].n++;
+    bySvc[k].sum += Number(o.amount) || 0;
+  });
+  const keys = Object.keys(bySvc).sort((a, b) => bySvc[b].sum - bySvc[a].sum);
+  if (keys.length) {
+    const max = Math.max(...keys.map(k => bySvc[k].sum), 1);
+    html += `<div class="section-title">🗂️ حسب نوع الخدمة</div><div class="rep-card">` +
+      keys.map(k => {
+        const pct = Math.round((bySvc[k].sum / max) * 100);
+        return `<div class="svc-row">
+          <div class="svc-top"><span>${esc(k)}</span><span class="svc-meta">${bySvc[k].n} · ${fmtMoney(bySvc[k].sum)}</span></div>
+          <div class="svc-bar"><div class="svc-fill" style="width:${pct}%"></div></div>
+        </div>`;
+      }).join("") + `</div>`;
+  }
+
+  $("#reportSummary").innerHTML = html;
   $("#reportPreview").textContent = buildReport();
 }
 
