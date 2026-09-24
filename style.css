@@ -234,6 +234,7 @@ nav button.active .ic { transform: translateY(-1px) scale(1.1); }
 }
 .sheet-close:active { transform: scale(.96); }
 .item.tappable { cursor: pointer; }
+.pressable { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .item .more {
   color: var(--muted); font-size: 18px; font-weight: 800; line-height: 1; padding: 2px 4px;
 }

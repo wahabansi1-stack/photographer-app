@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v13";
+const APP_VER = "v14";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -235,7 +235,7 @@ function renderOrders() {
       ? `<div class="check">✓</div>`
       : `<span class="more" title="خيارات">⋯</span>`;
     return `
-    <div class="item ${selectMode ? "selectable" : "tappable"} ${isSel ? "selecting" : ""}" ${selectMode ? `onclick='toggleSelect("${o.id}")'` : `onclick='showOrderActions("${o.id}")'`}>
+    <div class="item pressable ${selectMode ? "selectable" : "tappable"} ${isSel ? "selecting" : ""}" ontouchstart='pressStart(event,"order","${o.id}")' ontouchend='pressEnd(event)' ontouchmove='pressCancel()' onmousedown='pressStart(event,"order","${o.id}")' onmouseup='pressEnd(event)' onmouseleave='pressCancel()' onclick='pressTap(event,"order","${o.id}")' oncontextmenu='return false'>
       <div class="top">
         <div>
           <div class="name">📦 ${esc(o.client)}</div>
@@ -315,7 +315,7 @@ function renderClients() {
   $("#clientsList").innerHTML = list.length ? list.map(c => {
     const t = clientTotals(c.id);
     return `
-    <div class="item tappable" onclick='showClientActions("${c.id}")'>
+    <div class="item tappable pressable" ontouchstart='pressStart(event,"client","${c.id}")' ontouchend='pressEnd(event)' ontouchmove='pressCancel()' onmousedown='pressStart(event,"client","${c.id}")' onmouseup='pressEnd(event)' onmouseleave='pressCancel()' onclick='pressTap(event,"client","${c.id}")' oncontextmenu='return false'>
       <div class="top">
         <div>
           <div class="name">👥 ${esc(c.name)}</div>
@@ -382,21 +382,88 @@ function refresh() {
   renderReport();
   fillSettings();
   renderSelectBar();
+  rebuildSheets();
 }
 refresh();
 maybeBackupReminder();
 
-/* ---------- Modals ---------- */
-function openSheet(html) {
+/* ---------- Modals (sheet stack: back returns to previous) ---------- */
+let sheetStack = [];
+function openSheet(html, tag) {
+  sheetStack.push({ html, tag: tag || null });
+  renderSheetTop();
+}
+function renderSheetTop() {
+  const top = sheetStack[sheetStack.length - 1];
+  if (!top) { $("#overlay").classList.remove("show"); return; }
   $("#sheet").innerHTML = `
     <div class="sheet-top">
       <button class="sheet-close" onclick="closeSheet()">✕ إغلاق</button>
     </div>
-    ${html}`;
+    ${top.html}`;
   $("#overlay").classList.add("show");
 }
 function closeSheet() {
-  $("#overlay").classList.remove("show");
+  if (sheetStack.length) sheetStack.pop();
+  renderSheetTop();
+}
+function buildSheetByTag(tag) {
+  if (!tag) return null;
+  if (tag.kind === "clientDetail") {
+    if (!clientById(tag.id)) return null;
+    return clientDetailHtml(tag.id);
+  }
+  if (tag.kind === "orderActions") {
+    if (!state.orders.find(x => x.id === tag.id)) return null;
+    return orderActionsHtml(tag.id);
+  }
+  if (tag.kind === "clientActions") {
+    if (!clientById(tag.id)) return null;
+    return clientActionsHtml(tag.id);
+  }
+  return null;
+}
+function rebuildSheets() {
+  let changed = false;
+  for (let i = sheetStack.length - 1; i >= 0; i--) {
+    const s = sheetStack[i];
+    if (!s.tag) continue;
+    const html = buildSheetByTag(s.tag);
+    if (html == null) { sheetStack.splice(i, 1); changed = true; }
+    else if (html !== s.html) { s.html = html; changed = true; }
+  }
+  if (changed) renderSheetTop();
+}
+
+/* ---------- Press: tap enters, long-press shows options ---------- */
+let pressTimer = null, pressHeld = false, pressLastFire = 0;
+function pressStart(e, kind, id) {
+  if (e && e.button > 0) return;
+  if (pressHeld) return;
+  if (Date.now() - pressLastFire < 1200) return;
+  pressCancel();
+  pressHeld = false;
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    pressHeld = true;
+    pressLastFire = Date.now();
+    try { if (navigator.vibrate) navigator.vibrate(25); } catch (_) {}
+    if (kind === "client") showClientActions(id);
+    else if (kind === "order" && !selectMode) showOrderActions(id);
+  }, 550);
+}
+function pressCancel() {
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+}
+function pressEnd(e) { pressCancel(); }
+function pressTap(e, kind, id) {
+  pressCancel();
+  if (pressHeld) { pressHeld = false; return; }
+  if (kind === "client") showClientDetail(id);
+  else if (kind === "order") {
+    if (selectMode) toggleSelect(id);
+    else showOrderModal(id);
+  }
 }
 $("#overlay").addEventListener("click", e => { if (e.target === $("#overlay")) closeSheet(); });
 
@@ -444,8 +511,13 @@ function saveClient(id) {
 }
 
 function showClientDetail(id) {
+  const html = clientDetailHtml(id);
+  if (!html) return;
+  openSheet(html, { kind: "clientDetail", id });
+}
+function clientDetailHtml(id) {
   const c = clientById(id);
-  if (!c) return;
+  if (!c) return null;
   const t = clientTotals(id);
   const ledgers = ledgerOfClient(id).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const lt = ledgerTotals(id);
@@ -503,7 +575,7 @@ function showClientDetail(id) {
     </div>`;
   }).join("") : `<div class="ledger-empty">لا توجد بنود مديونية لهذا العميل.</div>`;
 
-  openSheet(`
+  return `
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <h2>👥 ${esc(c.name)}</h2>
     </div>
@@ -516,13 +588,13 @@ function showClientDetail(id) {
       <div class="stat due"><div class="lbl">📌 المتبقي</div><div class="val" style="font-size:18px;">${fmtMoney(t.remaining > 0 ? t.remaining : 0)}</div></div>
     </div>
     <div class="actions" style="margin-top:6px;">
-      <button class="btn btn-primary" onclick="closeSheet();showOrderModal('','${id}')">➕ اوردر</button>
-      <button class="btn btn-dark" onclick="closeSheet();showPaymentModal('','${id}')">💰 دفعة</button>
+      <button class="btn btn-primary" onclick="showOrderModal('','${id}')">➕ اوردر</button>
+      <button class="btn btn-dark" onclick="showPaymentModal('','${id}')">💰 دفعة</button>
       <button class="btn btn-green" onclick="sendClientWhatsApp('${id}')">📤 إرسال اوردراته</button>
     </div>
     <div class="actions" style="margin-top:8px;">
       <button class="btn btn-dark" onclick="exportClientPDF('${id}')">📄 PDF اوردرات العميل</button>
-      <button class="btn btn-dark" onclick="closeSheet();showClientModal('${id}')">✏️ بيانات العميل</button>
+      <button class="btn btn-dark" onclick="showClientModal('${id}')">✏️ بيانات العميل</button>
     </div>
     <div class="ledger-box">
       <div class="ledger-title">📒 سجل المديونية <span class="count">${ledgers.length}</span></div>
@@ -532,14 +604,14 @@ function showClientDetail(id) {
         <div class="lstat lstat-due"><div class="lbl">📌 المتبقي</div><div class="val">${fmtMoney(lt.remaining > 0 ? lt.remaining : 0)}</div></div>
       </div>
       <div class="actions" style="margin-top:6px;">
-        <button class="btn btn-primary btn-slim" onclick="closeSheet();showLedgerModal('${id}')">➕ بند مديونية</button>
+        <button class="btn btn-primary btn-slim" onclick="showLedgerModal('${id}')">➕ بند مديونية</button>
       </div>
       ${ledgerHtml}
     </div>
     <div class="section-title">اوردرات العميل <span class="count">${orders.length}</span></div>
     ${listHtml}
     <button class="btn btn-danger btn-block" style="margin-top:8px;" onclick="delClient('${id}')">🗑️ حذف العميل</button>
-  `);
+  `;
 }
 
 function showLedgerModal(clientId, entryId) {
@@ -578,7 +650,6 @@ function saveLedger(clientId, entryId) {
   }
   save();
   closeSheet();
-  showClientDetail(clientId);
   refresh();
   toast("تم حفظ البند");
 }
@@ -606,7 +677,6 @@ function saveLedgerPayment(entryId) {
   e.paid = (Number(e.paid) || 0) + amount;
   save();
   closeSheet();
-  showClientDetail(e.clientId);
   refresh();
   toast("تم تسجيل التسديد ✓");
 }
@@ -618,35 +688,38 @@ function delLedger(entryId) {
   const cid = e.clientId;
   state.ledger = state.ledger.filter(x => x.id !== entryId);
   save();
-  closeSheet();
-  showClientDetail(cid);
   refresh();
   toast("تم حذف البند");
 }
 
 function showClientActions(id) {
+  const html = clientActionsHtml(id);
+  if (!html) return;
+  openSheet(html, { kind: "clientActions", id });
+}
+function clientActionsHtml(id) {
   const c = clientById(id);
-  if (!c) return;
+  if (!c) return null;
   const t = clientTotals(id);
   const lt = ledgerTotals(id);
   const lrem = lt.remaining > 0 ? lt.remaining : 0;
-  openSheet(`
+  return `
     <h2>👥 ${esc(c.name)}</h2>
     ${c.phone ? `<div class="meta" style="margin-bottom:8px;">📱 ${esc(c.phone)}</div>` : ""}
     <div class="meta" style="margin-bottom:8px;">📦 ${t.count} اوردر · متبقي ${fmtMoney(t.remaining > 0 ? t.remaining : 0)}${lt.count > 0 ? " · 📒 مديونية متبقية " + fmtMoney(lrem) : ""}</div>
     <div class="actions" style="margin-top:6px;">
       <button class="btn btn-primary" onclick="closeSheet();showClientDetail('${id}')">👥 فتح بطاقة العميل</button>
-      <button class="btn btn-dark" onclick="closeSheet();showLedgerModal('${id}')">📒 بند مديونية</button>
+      <button class="btn btn-dark" onclick="showLedgerModal('${id}')">📒 بند مديونية</button>
     </div>
     <div class="actions" style="margin-top:8px;">
       <button class="btn btn-green" onclick="closeSheet();sendClientWhatsApp('${id}')">📤 واتساب</button>
       <button class="btn btn-dark" onclick="closeSheet();exportClientPDF('${id}')">📄 PDF</button>
     </div>
     <div class="actions" style="margin-top:8px;">
-      <button class="btn btn-dark" onclick="closeSheet();showClientModal('${id}')">✏️ بيانات العميل</button>
+      <button class="btn btn-dark" onclick="showClientModal('${id}')">✏️ بيانات العميل</button>
       <button class="btn btn-danger" onclick="closeSheet();delClient('${id}')">🗑️ حذف</button>
     </div>
-  `);
+  `;
 }
 
 function sendClientWhatsApp(id) {
@@ -879,24 +952,29 @@ function saveExpense(id) {
 }
 
 function showOrderActions(id) {
+  const html = orderActionsHtml(id);
+  if (!html) return;
+  openSheet(html, { kind: "orderActions", id });
+}
+function orderActionsHtml(id) {
   const o = state.orders.find(x => x.id === id);
-  if (!o) return;
+  if (!o) return null;
   const paid = paidForOrder(o.id);
   const remain = Number(o.amount) - paid;
-  openSheet(`
+  return `
     <h2>📦 ${esc(o.client)}</h2>
     <div class="meta" style="margin-bottom:8px;">${fmtDate(o.date)}${o.service ? " · " + esc(o.service) : ""} · ${fmtMoney(o.amount)}</div>
     <div class="meta" style="margin-bottom:8px;">${remain > 0 ? "متبقي " + fmtMoney(remain) : "مدفوع كامل ✓"}</div>
     <div class="actions" style="margin-top:6px;">
-      <button class="btn btn-primary" onclick="closeSheet();showPaymentModal('${id}')">💳 تحصيل</button>
-      <button class="btn btn-dark" onclick="closeSheet();showOrderModal('${id}')">✏️ تعديل</button>
+      <button class="btn btn-primary" onclick="showPaymentModal('${id}')">💳 تحصيل</button>
+      <button class="btn btn-dark" onclick="showOrderModal('${id}')">✏️ تعديل</button>
     </div>
     <div class="actions" style="margin-top:8px;">
       <button class="btn btn-green" onclick="closeSheet();sendOrderWhatsApp('${id}')">📤 واتساب</button>
       <button class="btn btn-dark" onclick="closeSheet();exportOrdersPDF(['${id}'],'اوردر')">📄 PDF</button>
     </div>
     <button class="btn btn-danger btn-block" style="margin-top:8px;" onclick="closeSheet();delOrder('${id}')">🗑️ حذف الاوردر</button>
-  `);
+  `;
 }
 
 function delOrder(id) {

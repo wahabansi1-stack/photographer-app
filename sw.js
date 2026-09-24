@@ -1,4 +1,4 @@
-const CACHE = "photographer-ledger-v14";
+const CACHE = "photographer-ledger-v15";
 const FILES = ["index.html", "style.css", "app.js", "jspdf.umd.min.js", "manifest.json"];
 
 self.addEventListener("install", e => {
