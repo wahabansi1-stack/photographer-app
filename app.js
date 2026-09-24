@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v14";
+const APP_VER = "v15";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -437,28 +437,28 @@ function rebuildSheets() {
 
 /* ---------- Press: tap enters, long-press shows options ---------- */
 let pressTimer = null, pressHeld = false, pressLastFire = 0;
+const PRESS_MS = 550, PRESS_COOLDOWN = 600;
 function pressStart(e, kind, id) {
   if (e && e.button > 0) return;
-  if (pressHeld) return;
-  if (Date.now() - pressLastFire < 1200) return;
-  pressCancel();
+  if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
+  if (pressTimer) { clearTimeout(pressTimer); }
   pressHeld = false;
   pressTimer = setTimeout(() => {
     pressTimer = null;
     pressHeld = true;
-    pressLastFire = Date.now();
     try { if (navigator.vibrate) navigator.vibrate(25); } catch (_) {}
     if (kind === "client") showClientActions(id);
     else if (kind === "order" && !selectMode) showOrderActions(id);
-  }, 550);
+  }, PRESS_MS);
 }
 function pressCancel() {
   if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
 }
-function pressEnd(e) { pressCancel(); }
-function pressTap(e, kind, id) {
+function pressEnd(e, kind, id) {
   pressCancel();
   if (pressHeld) { pressHeld = false; return; }
+  if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
+  pressLastFire = Date.now();
   if (kind === "client") showClientDetail(id);
   else if (kind === "order") {
     if (selectMode) toggleSelect(id);
