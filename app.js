@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v15";
+const APP_VER = "v16";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -371,6 +371,9 @@ function saveSettings() {
   refresh();
 }
 
+/* --- Modals sheet stack: back returns to previous --- */
+let sheetStack = [];
+
 function refresh() {
   buildMonths();
   renderHome();
@@ -388,7 +391,6 @@ refresh();
 maybeBackupReminder();
 
 /* ---------- Modals (sheet stack: back returns to previous) ---------- */
-let sheetStack = [];
 function openSheet(html, tag) {
   sheetStack.push({ html, tag: tag || null });
   renderSheetTop();
