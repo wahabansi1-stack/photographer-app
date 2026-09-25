@@ -96,6 +96,18 @@ header h1 span { color: var(--accent); -webkit-text-fill-color: var(--accent); }
   font-size: 11px; padding: 3px 10px; color: var(--muted); font-weight: 800;
 }
 
+.title-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: inherit; font: inherit; font-weight: 900; font-family: inherit;
+}
+.title-toggle .chev {
+  display: inline-block; font-size: 13px; line-height: 1; color: var(--accent);
+  transition: transform .2s ease;
+}
+.title-toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+#recentList.collapsed { display: none; }
+
 .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .btn {
   flex: 1; border: none; border-radius: 14px; padding: 13px 10px; font-size: 14px; font-weight: 800;

@@ -72,6 +72,13 @@ function togglePrivacy() {
   refresh();
   toast(state.settings.hideAmounts ? "🙈 المبالغ مخفية" : "👁️ المبالغ ظاهرة");
 }
+function toggleRecent() {
+  const list = $("#recentList");
+  const btn = $("#recentToggle");
+  if (!list || !btn) return;
+  const collapsed = list.classList.toggle("collapsed");
+  btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+}
 function fmtDate(s) {
   if (!s) return "";
   try {
@@ -90,7 +97,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v21";
+const APP_VER = "v22";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
