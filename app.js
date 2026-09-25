@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v16";
+const APP_VER = "v18";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -437,9 +437,10 @@ function rebuildSheets() {
   if (changed) renderSheetTop();
 }
 
-/* ---------- Press: tap enters, long-press shows options ---------- */
+/* ---------- Press ---------- */
 let pressTimer = null, pressHeld = false, pressLastFire = 0;
 const PRESS_MS = 550, PRESS_COOLDOWN = 600;
+pressCooldown = 600;
 function pressStart(e, kind, id) {
   if (e && e.button > 0) return;
   if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
@@ -458,7 +459,7 @@ function pressCancel() {
 }
 function pressEnd(e, kind, id) {
   pressCancel();
-  if (pressHeld) { pressHeld = false; return; }
+  if (pressHeld) { pressHeld = false; pressLastFire = Date.now(); return; }
   if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
   pressLastFire = Date.now();
   if (kind === "client") showClientDetail(id);
@@ -467,8 +468,11 @@ function pressEnd(e, kind, id) {
     else showOrderModal(id);
   }
 }
-$("#overlay").addEventListener("click", e => { if (e.target === $("#overlay")) closeSheet(); });
-
+/* Single tap (onclick) = enter directly; pressEnd already handled it,
+   cooldown stops a second entry. */
+function pressTap(e, kind, id) {
+  pressEnd(e, kind, id);
+}
 function orderSelectOptions(selId) {
   const remaining = o => Number(o.amount) - paidForOrder(o.id);
   const list = state.orders.filter(o => remaining(o) > 0 || (selId && o.id === selId));
