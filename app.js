@@ -437,13 +437,11 @@ function rebuildSheets() {
   if (changed) renderSheetTop();
 }
 
-/* ---------- Press ---------- */
-let pressTimer = null, pressHeld = false, pressLastFire = 0;
-const PRESS_MS = 550, PRESS_COOLDOWN = 600;
+/* ---------- Press: long-hold opens actions, single tap enters directly ---------- */
+let pressTimer = null, pressHeld = false;
 function pressStart(e, kind, id) {
   if (e && e.button > 0) return;
-  if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
-  if (pressTimer) { clearTimeout(pressTimer); }
+  pressCancel();
   pressHeld = false;
   pressTimer = setTimeout(() => {
     pressTimer = null;
@@ -451,28 +449,22 @@ function pressStart(e, kind, id) {
     try { if (navigator.vibrate) navigator.vibrate(25); } catch (_) {}
     if (kind === "client") showClientActions(id);
     else if (kind === "order" && !selectMode) showOrderActions(id);
-  }, PRESS_MS);
+  }, 550);
 }
 function pressCancel() {
   if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
 }
-function pressEnd(e, kind, id) {
+function pressEnd() { pressCancel(); }
+function pressTap(e, kind, id) {
   pressCancel();
-  if (pressHeld) { pressHeld = false; pressLastFire = Date.now(); return; }
-  if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
-  pressLastFire = Date.now();
+  if (pressHeld) { pressHeld = false; return; }
+  if (e && e.preventDefault) e.preventDefault();
   if (kind === "client") showClientDetail(id);
   else if (kind === "order") {
     if (selectMode) toggleSelect(id);
     else showOrderModal(id);
   }
-}
-/* Single tap (onclick) = enter directly; pressEnd already handled it,
-   cooldown stops a second entry. */
-function pressTap(e, kind, id) {
-  pressEnd(e, kind, id);
-}
-function orderSelectOptions(selId) {
+}function orderSelectOptions(selId) {
   const remaining = o => Number(o.amount) - paidForOrder(o.id);
   const list = state.orders.filter(o => remaining(o) > 0 || (selId && o.id === selId));
   return `<option value="">— اختياري: ربط باوردر —</option>` +
