@@ -219,23 +219,6 @@ nav button .ic { font-size: 21px; line-height: 1; transition: transform .15s; }
 nav button.active { color: var(--accent); background: rgba(251, 191, 36, .1); }
 nav button.active .ic { transform: translateY(-1px) scale(1.1); }
 
-nav button.nav-home { color: var(--accent); overflow: visible; }
-nav button.nav-home .ic {
-  font-size: 28px; width: 54px; height: 54px; margin-top: -4px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; border: 3px solid #0b1120;
-  background: linear-gradient(145deg, #fde68a, #f59e0b);
-  color: #0f172a;
-  box-shadow: 0 8px 18px rgba(251, 191, 36, .38), inset 0 2px 0 rgba(255, 255, 255, .55);
-  transform: translateY(-11px);
-}
-nav button.nav-home.active { background: none; }
-nav button.nav-home.active .ic {
-  transform: translateY(-13px) scale(1.06);
-  background: linear-gradient(145deg, #fef3c7, #fbbf24);
-  box-shadow: 0 10px 24px rgba(251, 191, 36, .55), inset 0 2px 0 rgba(255, 255, 255, .7);
-}
-
 .overlay {
   position: fixed; inset: 0; background: rgba(2, 6, 23, .7); z-index: 60;
   display: none; align-items: flex-end; justify-content: center;
