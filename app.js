@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v19";
+const APP_VER = "v20";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -120,7 +120,7 @@ $$("nav button").forEach(b => b.addEventListener("click", () => go(b.dataset.nav
 /* ---------- Month filter ---------- */
 function buildMonths() {
   const set = new Set();
-  ["orders", "payments", "expenses"].forEach(k => state[k].forEach(x => set.add(monthOf(x.date))));
+  ["orders", "payments"].forEach(k => state[k].forEach(x => set.add(monthOf(x.date))));
   set.add(currentMonth());
   const months = [...set].filter(Boolean).sort().reverse();
   const sel = $("#monthFilter");
@@ -185,7 +185,6 @@ function esc(s) {
 function renderHome() {
   const o = totals("orders");
   const p = totals("payments");
-  const e = totals("expenses");
   const due = o - p;
   const m = $("#monthFilter").value;
   const pb = $("#privacyBtn");
@@ -193,7 +192,6 @@ function renderHome() {
   let html = `
     <div class="stat total orders"><div class="lbl">📦 اجمالي الاوردرات</div><div class="val">${privMoney(o)}</div></div>
     <div class="stat ok"><div class="lbl">💰 المدفوعات</div><div class="val">${privMoney(p)}</div></div>
-    <div class="stat exp"><div class="lbl">🧾 المصروفات</div><div class="val">${privMoney(e)}</div></div>
     <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val">${privMoney(due > 0 ? due : 0)}</div></div>`;
   if (due < 0) {
     html += `<div class="stat note">ملاحظة: مدفوعات أكثر من الاوردرات بمقدار ${privMoney(Math.abs(due))}</div>`;
@@ -205,7 +203,6 @@ function renderHome() {
   const items = [];
   pickArr(state.payments).forEach(x => items.push({ t: "💰", d: x.date, client: x.client, amount: x.amount, extra: x.method || "", cls: "pay" }));
   pickArr(state.orders).forEach(x => items.push({ t: "📦", d: x.date, client: x.client, amount: x.amount, extra: x.service || "", cls: "orders" }));
-  pickArr(state.expenses).forEach(x => items.push({ t: "🧾", d: x.date, client: x.category, amount: -x.amount, extra: x.details || "", cls: "exp" }));
   items.sort((a, b) => (a.d < b.d ? 1 : -1));
   $("#recentCount").textContent = items.length;
   $("#recentList").innerHTML = items.length ? items.slice(0, 10).map(i => `
@@ -286,28 +283,6 @@ function renderPayments() {
   }).join("") : `<div class="empty">لا توجد مدفوعات مسجلة.</div>`;
 }
 
-function renderExpenses() {
-  const list = filtered("expenses");
-  $("#expensesList").innerHTML = list.length ? list.slice().reverse().map(x => `
-    <div class="item exp">
-      <div class="top">
-        <div>
-          <div class="name">🧾 ${esc(x.category)}</div>
-          <div class="meta">
-            <span>${fmtDate(x.date)}</span>
-            ${x.paidBy ? `<span class="badge">دفعها: ${esc(x.paidBy)}</span>` : ""}
-          </div>
-        </div>
-        <div class="amt">${fmtMoney(x.amount)}</div>
-      </div>
-      ${x.details ? `<div class="details">${esc(x.details)}</div>` : ""}
-      <div class="actions-inline">
-        <button class="btn btn-dark btn-slim" onclick='showExpenseModal("${x.id}")'>✏️ تعديل</button>
-        <button class="rm" onclick='delExpense("${x.id}")'>حذف</button>
-      </div>
-    </div>`).join("") : `<div class="empty">لا توجد مصروفات مسجلة.</div>`;
-}
-
 function renderClients() {
   let list = state.clients.slice().sort((a, b) => a.name.localeCompare(b.name, "ar"));
   const q = ($("#clientSearch") && $("#clientSearch").value || "").trim();
@@ -380,7 +355,6 @@ function refresh() {
   renderClients();
   renderOrders();
   renderPayments();
-  renderExpenses();
   renderBookings();
   renderReport();
   fillSettings();
@@ -839,25 +813,6 @@ function showPaymentModal(orderId, clientId, payId) {
   `);
 }
 
-function showExpenseModal(id) {
-  const ex = id ? state.expenses.find(x => x.id === id) : null;
-  const cats = ["بنزين", "طعام", "تصليح معدات", "طباعة صور", "شراء معدات", "أخرى"];
-  const payers = ["أنا", "الشركة", "أخرى"];
-  openSheet(`
-    <h2>${ex ? "✏️ تعديل مصروف" : "🧾 تسجيل مصروف"}</h2>
-    <div class="field"><label>نوع المصروف</label><select id="xCat">
-      ${cats.map(s => `<option ${ex && ex.category === s ? "selected" : ""}>${s}</option>`).join("")}
-    </select></div>
-    <div class="field"><label>المبلغ *</label><input id="xAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${ex ? ex.amount : ""}" placeholder="0"></div>
-    <div class="field-row">
-      <div class="field"><label>مَن دفعها</label><select id="xPaidBy">${payers.map(s => `<option ${ex && ex.paidBy === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
-      <div class="field"><label>التاريخ</label><input id="xDate" type="date" value="${ex ? ex.date : todayStr()}"></div>
-    </div>
-    <div class="field"><label>تفاصيل</label><textarea id="xDetails" placeholder="وصف المصروف...">${esc(ex ? ex.details : "")}</textarea></div>
-    <button class="btn btn-primary btn-block" onclick="saveExpense('${ex ? ex.id : ""}')">${ex ? "حفظ التعديل" : "حفظ المصروف"}</button>
-  `);
-}
-
 /* ---------- Save / Delete ---------- */
 function saveOrder(id) {
   const ocSel = $("#oClient").value;
@@ -926,28 +881,6 @@ function savePayment(id) {
   toast(id ? "تم حفظ التعديل" : "تم تسجيل الدفعة");
 }
 
-function saveExpense(id) {
-  const amount = parseFloat($("#xAmount").value);
-  if (!(amount > 0)) return toast("اكتب مبلغ صحيح");
-  const data = {
-    category: $("#xCat").value,
-    amount,
-    paidBy: $("#xPaidBy").value,
-    date: $("#xDate").value || todayStr(),
-    details: $("#xDetails").value.trim()
-  };
-  if (id) {
-    const x = state.expenses.find(e => e.id === id);
-    if (x) Object.assign(x, data);
-  } else {
-    state.expenses.push(Object.assign({ id: uid() }, data));
-  }
-  save();
-  closeSheet();
-  refresh();
-  toast(id ? "تم حفظ التعديل" : "تم تسجيل المصروف");
-}
-
 function showOrderActions(id) {
   const html = orderActionsHtml(id);
   if (!html) return;
@@ -989,14 +922,6 @@ function delPayment(id) {
   refresh();
   toast("تم الحذف");
 }
-function delExpense(id) {
-  if (!confirm("حذف هذا المصروف؟")) return;
-  state.expenses = state.expenses.filter(x => x.id !== id);
-  save();
-  refresh();
-  toast("تم الحذف");
-}
-
 /* ---------- Bookings (حجوزات التصوير) ---------- */
 let remindedBookings = new Set();
 function daysUntil(dstr) {
@@ -1615,16 +1540,15 @@ $("#reportRangeSeg").addEventListener("click", e => {
 
 function reportData() {
   if (reportRange === "all") {
-    return { orders: state.orders.slice(), payments: state.payments.slice(), expenses: state.expenses.slice(), label: "كل الفترات" };
+    return { orders: state.orders.slice(), payments: state.payments.slice(), label: "كل الفترات" };
   }
   const m = $("#monthFilter").value;
   if (!m || m === "all") {
-    return { orders: state.orders.slice(), payments: state.payments.slice(), expenses: state.expenses.slice(), label: "كل الفترات" };
+    return { orders: state.orders.slice(), payments: state.payments.slice(), label: "كل الفترات" };
   }
   return {
     orders: state.orders.filter(o => inMonth(o.date, m)),
     payments: state.payments.filter(p => inMonth(p.date, m)),
-    expenses: state.expenses.filter(x => inMonth(x.date, m)),
     label: monthLabel(m)
   };
 }
@@ -1635,7 +1559,6 @@ function buildReport() {
   const company = s.company || "دفتر التصوير";
   const oSum = d.orders.reduce((a, x) => a + (Number(x.amount) || 0), 0);
   const pSum = d.payments.reduce((a, x) => a + (Number(x.amount) || 0), 0);
-  const eSum = d.expenses.reduce((a, x) => a + (Number(x.amount) || 0), 0);
   const due = oSum - pSum;
 
   let txt = "";
@@ -1679,19 +1602,7 @@ function buildReport() {
     txt += `💰 المدفوعات (${d.payments.length}):\n${pLine}\n`;
   }
 
-  if (d.expenses.length) {
-    let xLine = "";
-    d.expenses.forEach((x, i) => {
-      xLine += `${i + 1}) ${x.category}`;
-      if (x.paidBy) xLine += ` · ${x.paidBy}`;
-      xLine += ` — ${fmtMoney(x.amount)}\n   📅 ${fmtDate(x.date)}`;
-      if (x.details) xLine += ` · ${x.details}`;
-      xLine += "\n";
-    });
-    txt += `🧾 المصروفات (${d.expenses.length}):\n${xLine}\n`;
-  }
-
-  if (!d.orders.length && !d.payments.length && !d.expenses.length) {
+  if (!d.orders.length && !d.payments.length) {
     txt += "لا توجد بيانات في هذه الفترة.\n";
   }
   txt += "\n— أُرسل عبر 📸 دفتر التصوير —";
@@ -1702,15 +1613,13 @@ function renderReport() {
   const d = reportData();
   const oSum = d.orders.reduce((a, x) => a + (Number(x.amount) || 0), 0);
   const pSum = d.payments.reduce((a, x) => a + (Number(x.amount) || 0), 0);
-  const eSum = d.expenses.reduce((a, x) => a + (Number(x.amount) || 0), 0);
   const due = oSum - pSum;
-  const net = pSum - eSum;
+  const net = pSum;
   const rate = oSum > 0 ? Math.min(100, Math.round((pSum / oSum) * 100)) : 0;
 
   let html = `<div class="stats">
     <div class="stat total orders"><div class="lbl">📦 إجمالي الأوردرات · ${d.orders.length}</div><div class="val">${fmtMoney(oSum)}</div></div>
     <div class="stat ok"><div class="lbl">💰 المحصّل · ${d.payments.length}</div><div class="val">${fmtMoney(pSum)}</div></div>
-    <div class="stat exp"><div class="lbl">🧾 المصروفات · ${d.expenses.length}</div><div class="val">${fmtMoney(eSum)}</div></div>
     <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val">${fmtMoney(due > 0 ? due : 0)}</div></div>
     <div class="stat ${net >= 0 ? "ok" : "exp"}"><div class="lbl">📊 صافي الربح</div><div class="val">${fmtMoney(net)}</div></div>
     <div class="stat"><div class="lbl">🎯 نسبة التحصيل</div><div class="val">${rate}<small>%</small></div></div>
@@ -1782,7 +1691,6 @@ function exportCSV() {
   rows.push(["النوع", "التاريخ", "الاسم/التصنيف", "الخدمة/الطريقة", "المبلغ", "ملاحظات"].map(csvCell).join(","));
   state.orders.forEach(o => rows.push(["اوردر", o.date, o.client, o.service || "", o.amount, o.details || ""].map(csvCell).join(",")));
   state.payments.forEach(p => rows.push(["دفعة", p.date, p.client, p.method || "", p.amount, p.details || ""].map(csvCell).join(",")));
-  state.expenses.forEach(x => rows.push(["مصروف", x.date, x.category, x.paidBy || "", x.amount, x.details || ""].map(csvCell).join(",")));
   (state.ledger || []).forEach(l => rows.push(["بند مديونية", l.date, l.client, l.title || "", l.amount, "مسدد: " + (Number(l.paid) || 0) + (l.details ? " · " + l.details : "")].map(csvCell).join(",")));
   (state.bookings || []).forEach(b => rows.push(["حجز", b.date + (b.time ? " " + b.time : ""), b.client || "", b.title || "", b.done ? "تم" : "مجدول", b.details || ""].map(csvCell).join(",")));
   const b = "\uFEFF" + rows.join("\r\n");
@@ -1804,14 +1712,13 @@ function importJSON() {
   if (!txt) return toast("الصق النص الاحتياطي أولاً");
   try {
     const d = JSON.parse(txt);
-    if (!d || !Array.isArray(d.orders) || !Array.isArray(d.payments) || !Array.isArray(d.expenses)) {
+    if (!d || !Array.isArray(d.orders) || !Array.isArray(d.payments)) {
       return toast("ملف غير صالح");
     }
     if (!confirm("سيتم استبدال البيانات الحالية. متابعة؟")) return;
     state = {
       orders: d.orders,
       payments: d.payments,
-      expenses: d.expenses,
       clients: Array.isArray(d.clients) ? d.clients : [],
       ledger: Array.isArray(d.ledger) ? d.ledger : [],
       bookings: Array.isArray(d.bookings) ? d.bookings : [],
