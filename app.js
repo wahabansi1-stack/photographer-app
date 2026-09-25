@@ -90,7 +90,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v18";
+const APP_VER = "v19";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -440,7 +440,6 @@ function rebuildSheets() {
 /* ---------- Press ---------- */
 let pressTimer = null, pressHeld = false, pressLastFire = 0;
 const PRESS_MS = 550, PRESS_COOLDOWN = 600;
-pressCooldown = 600;
 function pressStart(e, kind, id) {
   if (e && e.button > 0) return;
   if (Date.now() - pressLastFire < PRESS_COOLDOWN) return;
