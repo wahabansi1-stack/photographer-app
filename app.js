@@ -98,7 +98,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v25";
+const APP_VER = "v26";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -226,6 +226,67 @@ function renderHome() {
     : `<div class="empty">لا توجد عمليات${mm === "all" ? "" : " لهذا الشهر"}.</div>`;
 }
 
+/* ---------- Global instant search ---------- */
+function renderGlobalSearch() {
+  const box = $("#globalSearchResults");
+  if (!box) return;
+  const q = ($("#globalSearch") && $("#globalSearch").value || "").trim();
+  if (!q) { box.style.display = "none"; box.innerHTML = ""; return; }
+  const low = q.toLowerCase();
+  const hits = [];
+  const matches = (...fields) => fields.some(f => String(f == null ? "" : f).toLowerCase().includes(low));
+
+  state.clients.forEach(c => {
+    if (matches(c.name, c.phone, c.details))
+      hits.push({ kind: "client", id: c.id, t: "👥", title: c.name,
+        meta: [c.phone || "", ` ${clientTotals(c.id).count} اوردر`].filter(Boolean).join(" · ") });
+  });
+  state.orders.forEach(o => {
+    if (matches(o.client, o.service, o.details))
+      hits.push({ kind: "order", id: o.id, t: "📦", title: o.client,
+        meta: [fmtDate(o.date), o.service || ""].filter(Boolean).join(" · ") });
+  });
+  state.payments.forEach(p => {
+    if (matches(p.client, p.method, p.details))
+      hits.push({ kind: "payment", id: p.id, t: "💰", title: p.client,
+        meta: [fmtDate(p.date), p.method || ""].filter(Boolean).join(" · ") });
+  });
+  (state.bookings || []).forEach(b => {
+    if (matches(b.title, b.client, b.details))
+      hits.push({ kind: "booking", id: b.id, t: "📅", title: b.title || "حجز",
+        meta: [fmtDate(b.date), b.client || ""].filter(Boolean).join(" · ") });
+  });
+  (state.photographerDues || []).forEach(d => {
+    if (matches(d.name, d.type, d.details))
+      hits.push({ kind: "due", id: d.id, t: "🤝", title: d.name,
+        meta: [fmtDate(d.date), d.type || ""].filter(Boolean).join(" · ") });
+  });
+
+  if (!hits.length) {
+    box.style.display = "block";
+    box.innerHTML = `<div class="empty">لا توجد نتائج لـ «${esc(q)}»</div>`;
+    return;
+  }
+  box.style.display = "block";
+  box.innerHTML = hits.slice(0, 40).map(h => `
+    <div class="item tappable pressable" onclick='globalSearchOpen("${h.kind}", "${h.id}")'>
+      <div class="top">
+        <div>
+          <div class="name">${h.t} ${esc(h.title)}</div>
+          <div class="meta">${esc(h.meta)}</div>
+        </div>
+        <div style="color:var(--muted);font-size:12px;font-weight:800;">فتح ›</div>
+      </div>
+    </div>`).join("");
+}
+function globalSearchOpen(kind, id) {
+  if (kind === "client") showClientDetail(id);
+  else if (kind === "order") showOrderModal(id);
+  else if (kind === "payment") showPaymentModal("", "", id);
+  else if (kind === "booking") showBookingModal(id);
+  else if (kind === "due") showPhotographerDueModal(id);
+}
+
 function renderOrders() {
   let list = filtered("orders");
   const q = ($("#orderSearch") && $("#orderSearch").value || "").trim();
@@ -345,6 +406,52 @@ function maybeBackupReminder() {
   }
 }
 
+/* ---------- Auto cloud backup via WhatsApp ---------- */
+function buildBackupTxt() {
+  const now = new Date().toLocaleString("ar-EG-u-nu-latn", { dateStyle: "long", timeStyle: "short" });
+  return `💾 نسخة احتياطية — 📸 دفتر التصوير\n🕓 ${now}\n\n` + JSON.stringify(state, null, 1);
+}
+function fillBackupSettings() {
+  const bn = $("#setBackupNum");
+  if (bn) bn.value = state.settings.autoBackupNum || "";
+  const tg = $("#autoBackupToggle");
+  if (tg) tg.checked = !!state.settings.autoBackup;
+}
+function saveBackupSettings() {
+  const bn = $("#setBackupNum");
+  if (bn) state.settings.autoBackupNum = bn.value.replace(/\D/g, "");
+  const tg = $("#autoBackupToggle");
+  if (tg) state.settings.autoBackup = !!tg.checked;
+  save();
+  toast("تم حفظ إعدادات النسخة الاحتياطية");
+}
+function backupNum() {
+  return (state.settings.autoBackupNum || "").replace(/\D/g, "");
+}
+function sendAutoBackup(manual) {
+  const num = backupNum();
+  if (!num) return toast("أدخل رقم واتسابك أولاً في تبويب التقرير");
+  state.settings.lastBackup = Date.now();
+  if (manual) state.settings.lastAutoBackup = Date.now();
+  save();
+  openWhatsApp(num, buildBackupTxt(), "النسخة الاحتياطية");
+  const tip = $("#lastBackupTip");
+  if (tip) tip.textContent = "💾 تم الإرسال قبل لحظات";
+  if (!manual) toast("💾 أُرسلت النسخة الاحتياطية اليومية");
+  refresh();
+}
+function maybeAutoBackup() {
+  if (autoBackupRan) return;
+  autoBackupRan = true;
+  if (!state.settings.autoBackup) return;
+  if (!backupNum()) return;
+  const last = state.settings.lastAutoBackup || 0;
+  if (Date.now() - last >= 86400000) {
+    setTimeout(() => sendAutoBackup(false), 4000);
+  }
+}
+let autoBackupRan = false;
+
 function saveSettings() {
   state.settings.accountant = $("#setAccountant").value.replace(/\D/g, "");
   state.settings.company = $("#setCompany").value.trim();
@@ -367,11 +474,13 @@ function refresh() {
   renderPhotographerDues();
   renderReport();
   fillSettings();
+  fillBackupSettings();
   renderSelectBar();
   rebuildSheets();
 }
 refresh();
 maybeBackupReminder();
+maybeAutoBackup();
 
 /* ---------- Modals (sheet stack: back returns to previous) ---------- */
 function openSheet(html, tag) {

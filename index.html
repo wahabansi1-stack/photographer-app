@@ -20,6 +20,10 @@
   </header>
 
   <section class="screen active" id="screen-home">
+    <div class="field" style="margin-bottom:12px;">
+      <input type="search" id="globalSearch" class="search-box" placeholder="🔍 بحث فوري في كل شيء: عملاء، اوردرات، مدفوعات، حجوزات، مستحقات..." oninput="renderGlobalSearch()" autocomplete="off">
+    </div>
+    <div id="globalSearchResults" style="display:none;margin-bottom:12px;"></div>
     <div id="homeStats" class="stats"></div>
     <div class="actions">
       <button class="btn btn-primary" onclick="showOrderModal()">+ اوردر</button>
@@ -119,7 +123,27 @@
       <button class="btn btn-dark" onclick="exportJSON()">نسخة احتياطية</button>
       <button class="btn btn-danger" onclick="confirmClear()">مسح الكل</button>
     </div>
-    <p class="tip">النسخة الاحتياطية تصدر كل بياناتك كنص، تقدر تحفظها أو ترسلها. للاسترجاع الصق النص هنا ثم اضغط استرجاع:</p>
+
+    <div class="section-title">💾 النسخة الاحتياطية السحابية (واتساب)</div>
+    <p class="tip">تُرسل نسخة من كل بياناتك إلى رقم واتسابك يومياً تلقائياً — ولو بدون إنترنت تعمل محلياً.</p>
+    <div class="field">
+      <label>رقمك في واتساب (تُرسل له النسخة) بدون + وبدون الصفر</label>
+      <div class="input-group">
+        <input type="tel" id="setBackupNum" inputmode="numeric" placeholder="5xxxxxxxx" dir="ltr">
+        <button class="btn btn-dark btn-slim" onclick="saveBackupSettings()">حفظ</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="switch-row">
+        <input type="checkbox" id="autoBackupToggle" onchange="saveBackupSettings()">
+        <span>🔁 إرسال تلقائي يومياً</span>
+      </label>
+    </div>
+    <div class="actions" style="margin-top:10px;">
+      <button class="btn btn-green" onclick="sendAutoBackup(true)">💾 أرسل النسخة الآن</button>
+    </div>
+
+    <p class="tip">النسخة الاحتياطية اليدوية تصدر كل بياناتك كنص، تقدر تحفظها أو ترسلها. للاسترجاع الصق النص هنا ثم اضغط استرجاع:</p>
     <div class="field">
       <textarea id="importBox" placeholder="الصق النص الاحتياطي هنا"></textarea>
     </div>

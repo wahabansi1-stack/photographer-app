@@ -339,6 +339,22 @@ nav button.active .ic { transform: translateY(-1px) scale(1.1); }
 
 .tip { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
 .input-group { display: flex; gap: 8px; }
+
+.switch-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer;
+  font-size: 14px; font-weight: 800;
+}
+.switch-row input[type="checkbox"] {
+  width: 46px; height: 26px; appearance: none; -webkit-appearance: none; flex: none;
+  background: var(--card2); border: 1px solid var(--border); border-radius: 99px;
+  position: relative; cursor: pointer; transition: background .2s, border-color .2s;
+}
+.switch-row input[type="checkbox"]::after {
+  content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 20px; height: 20px;
+  background: var(--muted); border-radius: 50%; transition: inset-inline-start .2s, background .2s;
+}
+.switch-row input[type="checkbox"]:checked { background: linear-gradient(135deg, #fcd34d, var(--accent)); border-color: var(--accent); }
+.switch-row input[type="checkbox"]:checked::after { background: #1c1005; inset-inline-start: calc(100% - 22px); }
 .input-group input { flex: 1; }
 .input-group .field input, .input-group input {
   background: rgba(11, 18, 32, .75); border: 1px solid var(--border); color: var(--text);
