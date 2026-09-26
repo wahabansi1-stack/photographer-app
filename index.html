@@ -66,6 +66,21 @@
     <div id="bookingsList"></div>
   </section>
 
+  <section class="screen" id="screen-dues">
+    <div class="dues-hero">
+      <div class="dues-hero-lbl">💸 إجمالي المستحق للمصورين</div>
+      <div class="dues-hero-val" id="duesTotal">0</div>
+      <div class="dues-hero-sub" id="duesCount">لا يوجد مستحقات</div>
+    </div>
+    <div class="list-toolbar">
+      <div class="section-title" style="margin:0;">🤝 مستحقات المصورين</div>
+      <div class="toolbar-actions">
+        <button class="btn btn-primary btn-slim" onclick="showPhotographerDueModal()">+ مستحق</button>
+      </div>
+    </div>
+    <div id="duesList"></div>
+  </section>
+
   <section class="screen" id="screen-settings">
     <div class="section-title">⚙️ الإعدادات</div>
     <div class="field">
@@ -122,6 +137,7 @@
       <button data-nav="orders"><span class="ic">📦</span>الاوردرات</button>
       <button data-nav="payments"><span class="ic">💰</span>المدفوعات</button>
       <button data-nav="bookings"><span class="ic">📅</span>الحجوزات<span class="nbadge" id="bookingBadge" style="display:none;background:var(--danger);color:#fff;border-radius:99px;min-width:18px;height:18px;font-size:10px;font-weight:800;align-items:center;justify-content:center;padding:0 5px;"></span></button>
+      <button data-nav="dues"><span class="ic">🤝</span>المستحقات</button>
       <button data-nav="settings"><span class="ic">📤</span>التقرير</button>
     </div>
   </nav>

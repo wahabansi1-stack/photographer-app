@@ -9,7 +9,7 @@ let selectMode = false;
 let selected = new Set();
 
 function load() {
-  let base = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], settings: {} };
+  let base = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], settings: {} };
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
@@ -20,6 +20,7 @@ function load() {
   if (!Array.isArray(base.clients)) base.clients = [];
   if (!Array.isArray(base.ledger)) base.ledger = [];
   if (!Array.isArray(base.bookings)) base.bookings = [];
+  if (!Array.isArray(base.photographerDues)) base.photographerDues = [];
   base.clients.forEach(c => {
     c.name = (c.name || "").trim();
     if (!c.name) c.name = "عميل";
@@ -97,7 +98,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v22";
+const APP_VER = "v23";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -363,6 +364,7 @@ function refresh() {
   renderOrders();
   renderPayments();
   renderBookings();
+  renderPhotographerDues();
   renderReport();
   fillSettings();
   renderSelectBar();
@@ -1080,6 +1082,81 @@ function sendBookingWhatsApp(id) {
   openWhatsApp(num, txt, b.client || b.title);
 }
 
+/* ---------- Photographer dues (مستحقات المصورين) ---------- */
+function renderPhotographerDues() {
+  const list = filtered("photographerDues").slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const total = list.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const t = $("#duesTotal");
+  if (t) t.textContent = fmtMoney(total);
+  const c = $("#duesCount");
+  if (c) c.textContent = list.length ? `${list.length} بند مسجّل` : "لا يوجد مستحقات";
+  const el = $("#duesList");
+  if (!el) return;
+  el.innerHTML = list.length ? list.map(d => `
+    <div class="due-card">
+      <div class="due-top">
+        <div>
+          <div class="due-name">${esc(d.name || "مصور")}</div>
+          <div class="due-meta">
+            <span>📅 ${fmtDate(d.date)}</span>
+            ${d.type ? `<span class="due-type">🎬 ${esc(d.type)}</span>` : ""}
+          </div>
+        </div>
+        <div class="due-amt">${fmtMoney(d.amount)}</div>
+      </div>
+      ${d.details ? `<div class="due-notes">${esc(d.details)}</div>` : ""}
+      <div class="actions-inline">
+        <button class="btn btn-dark btn-slim" onclick='showPhotographerDueModal("${d.id}")'>✏️ تعديل</button>
+        <button class="rm" onclick='delPhotographerDue("${d.id}")'>حذف</button>
+      </div>
+    </div>`).join("") : `<div class="empty">لا توجد مستحقات. اضغط «+ مستحق» لتسجيل مبلغ مستحق لمصور.</div>`;
+}
+function showPhotographerDueModal(id) {
+  const d = id ? (state.photographerDues || []).find(x => x.id === id) : null;
+  openSheet(`
+    <h2>${d ? "✏️ تعديل مستحق" : "🤝 مستحق جديد لمصور"}</h2>
+    <div class="field"><label>اسم المصور *</label><input id="pdName" value="${esc(d ? d.name : "")}" placeholder="مثال: أبو خالد"></div>
+    <div class="field"><label>نوع التصوير</label><input id="pdType" value="${esc(d ? d.type : "")}" placeholder="مثال: فوتو / فيديو / مونتاج"></div>
+    <div class="field-row">
+      <div class="field"><label>تاريخ التصوير *</label><input id="pdDate" type="date" value="${d ? d.date : todayStr()}"></div>
+      <div class="field"><label>المبلغ المستحق *</label><input id="pdAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${d ? d.amount : ""}" placeholder="0"></div>
+    </div>
+    <div class="field"><label>ملاحظات</label><textarea id="pdDetails" placeholder="تفاصيل الفعالية، عدد الصور، ملاحظات أخرى...">${esc(d ? d.details : "")}</textarea></div>
+    <button class="btn btn-primary btn-block" onclick="savePhotographerDue('${id || ""}')">${d ? "حفظ التعديل" : "حفظ المستحق"}</button>
+  `);
+}
+function savePhotographerDue(id) {
+  const name = $("#pdName").value.trim();
+  if (!name) return toast("اكتب اسم المصور");
+  const amount = parseFloat($("#pdAmount").value);
+  if (!(amount > 0)) return toast("اكتب مبلغ صحيح");
+  const data = {
+    name,
+    type: $("#pdType").value.trim(),
+    date: $("#pdDate").value || todayStr(),
+    amount,
+    details: $("#pdDetails").value.trim()
+  };
+  if (!Array.isArray(state.photographerDues)) state.photographerDues = [];
+  if (id) {
+    const d = state.photographerDues.find(x => x.id === id);
+    if (d) Object.assign(d, data);
+  } else {
+    state.photographerDues.push(Object.assign({ id: uid() }, data));
+  }
+  save();
+  closeSheet();
+  refresh();
+  toast(id ? "تم حفظ التعديل" : "تم تسجيل المستحق");
+}
+function delPhotographerDue(id) {
+  if (!confirm("حذف هذا المستحق؟")) return;
+  state.photographerDues = (state.photographerDues || []).filter(x => x.id !== id);
+  save();
+  refresh();
+  toast("تم الحذف");
+}
+
 /* ---------- Selection mode ---------- */
 function toggleSelectMode() {
   selectMode = !selectMode;
@@ -1729,6 +1806,7 @@ function importJSON() {
       clients: Array.isArray(d.clients) ? d.clients : [],
       ledger: Array.isArray(d.ledger) ? d.ledger : [],
       bookings: Array.isArray(d.bookings) ? d.bookings : [],
+      photographerDues: Array.isArray(d.photographerDues) ? d.photographerDues : [],
       settings: Object.assign({}, state.settings, d.settings || {})
     };
     save();
@@ -1743,7 +1821,7 @@ function importJSON() {
 function confirmClear() {
   if (!confirm("حذف كل البيانات نهائياً؟ لا يمكن التراجع!")) return;
   if (!confirm("تأكيد أخير: هل أنت متأكد تماماً؟")) return;
-  state = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], settings: state.settings };
+  state = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], settings: state.settings };
   save();
   refresh();
   toast("تم مسح كل البيانات");
