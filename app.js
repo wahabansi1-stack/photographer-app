@@ -98,7 +98,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v26";
+const APP_VER = "v27";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -793,18 +793,20 @@ function clientActionsHtml(id) {
   const lt = ledgerTotals(id);
   const lrem = lt.remaining > 0 ? lt.remaining : 0;
   return `
-    <h2>👥 ${esc(c.name)}</h2>
-    ${c.phone ? `<div class="meta" style="margin-bottom:8px;">📱 ${esc(c.phone)}</div>` : ""}
-    <div class="meta" style="margin-bottom:8px;">📦 ${t.count} اوردر · متبقي ${fmtMoney(t.remaining > 0 ? t.remaining : 0)}${lt.count > 0 ? " · 📒 مديونية متبقية " + fmtMoney(lrem) : ""}</div>
-    <div class="actions" style="margin-top:6px;">
+    <div class="sheet-header-card">
+      <h2>👥 ${esc(c.name)}</h2>
+      ${c.phone ? `<div class="sheet-phone">📱 ${esc(c.phone)}</div>` : ""}
+      <div class="sheet-stats">
+        <span class="stat-chip">📦 <b>${t.count}</b> اوردر</span>
+        <span class="stat-chip highlighted">💰 متبقي: <b>${fmtMoney(t.remaining > 0 ? t.remaining : 0)}</b></span>
+        ${lt.count > 0 ? `<span class="stat-chip ledger-chip">📒 مديونية: <b>${fmtMoney(lrem)}</b></span>` : ""}
+      </div>
+    </div>
+    <div class="sheet-grid">
       <button class="btn btn-primary" onclick="closeSheet();showClientDetail('${id}')">👥 فتح بطاقة العميل</button>
       <button class="btn btn-dark" onclick="showLedgerModal('${id}')">📒 بند مديونية</button>
-    </div>
-    <div class="actions" style="margin-top:8px;">
       <button class="btn btn-green" onclick="closeSheet();sendClientWhatsApp('${id}')">📤 واتساب</button>
       <button class="btn btn-dark" onclick="closeSheet();exportClientPDF('${id}')">📄 PDF</button>
-    </div>
-    <div class="actions" style="margin-top:8px;">
       <button class="btn btn-dark" onclick="showClientModal('${id}')">✏️ بيانات العميل</button>
       <button class="btn btn-danger" onclick="closeSheet();delClient('${id}')">🗑️ حذف</button>
     </div>
@@ -1010,18 +1012,22 @@ function orderActionsHtml(id) {
   const paid = paidForOrder(o.id);
   const remain = Number(o.amount) - paid;
   return `
-    <h2>📦 ${esc(o.client)}</h2>
-    <div class="meta" style="margin-bottom:8px;">${fmtDate(o.date)}${o.service ? " · " + esc(o.service) : ""} · ${fmtMoney(o.amount)}</div>
-    <div class="meta" style="margin-bottom:8px;">${remain > 0 ? "متبقي " + fmtMoney(remain) : "مدفوع كامل ✓"}</div>
-    <div class="actions" style="margin-top:6px;">
+    <div class="sheet-header-card">
+      <h2>📦 ${esc(o.client)}</h2>
+      <div class="sheet-stats">
+        <span class="stat-chip">📅 ${fmtDate(o.date)}</span>
+        ${o.service ? `<span class="stat-chip">🎬 ${esc(o.service)}</span>` : ""}
+        <span class="stat-chip highlighted">💰 الإجمالي: <b>${fmtMoney(o.amount)}</b></span>
+        <span class="stat-chip ${remain > 0 ? 'due-chip' : 'ok-chip'}">${remain > 0 ? "⚠️ متبقي: <b>" + fmtMoney(remain) + "</b>" : "✓ مدفوع كامل"}</span>
+      </div>
+    </div>
+    <div class="sheet-grid">
       <button class="btn btn-primary" onclick="showPaymentModal('${id}')">💳 تحصيل</button>
       <button class="btn btn-dark" onclick="showOrderModal('${id}')">✏️ تعديل</button>
-    </div>
-    <div class="actions" style="margin-top:8px;">
       <button class="btn btn-green" onclick="closeSheet();sendOrderWhatsApp('${id}')">📤 واتساب</button>
       <button class="btn btn-dark" onclick="closeSheet();exportOrdersPDF(['${id}'],'اوردر')">📄 PDF</button>
+      <button class="btn btn-danger full-width" onclick="closeSheet();delOrder('${id}')">🗑️ حذف الاوردر</button>
     </div>
-    <button class="btn btn-danger btn-block" style="margin-top:8px;" onclick="closeSheet();delOrder('${id}')">🗑️ حذف الاوردر</button>
   `;
 }
 

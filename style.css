@@ -418,3 +418,78 @@ nav button.active .ic { transform: translateY(-1px) scale(1.1); }
 .svc-meta { color: var(--muted); font-weight: 700; font-size: 12px; }
 .svc-bar { height: 8px; background: rgba(255, 255, 255, .08); border-radius: 99px; overflow: hidden; }
 .svc-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); }
+
+/* ---------- Beautiful bottom sheet cards and grids ---------- */
+.sheet-header-card {
+  background: rgba(11, 18, 32, .5);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 15px;
+  margin-bottom: 16px;
+}
+.sheet-header-card h2 {
+  margin: 0 0 6px !important;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+}
+.sheet-phone {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+.sheet-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.stat-chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.stat-chip.highlighted {
+  background: rgba(251, 191, 36, .1);
+  border-color: rgba(251, 191, 36, .25);
+  color: var(--accent);
+}
+.stat-chip.ledger-chip {
+  background: rgba(56, 189, 248, .1);
+  border-color: rgba(56, 189, 248, .25);
+  color: var(--accent-2);
+}
+.stat-chip.due-chip {
+  background: rgba(239, 68, 68, .1);
+  border-color: rgba(239, 68, 68, .25);
+  color: var(--bad);
+}
+.stat-chip.ok-chip {
+  background: rgba(52, 211, 153, .1);
+  border-color: rgba(52, 211, 153, .25);
+  color: var(--ok);
+}
+
+.sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+.sheet-grid .btn {
+  margin-top: 0 !important;
+  padding: 14px 10px;
+  font-size: 13px;
+  border-radius: 12px;
+  justify-content: center;
+  text-align: center;
+}
+.sheet-grid .btn-block,
+.sheet-grid .btn.full-width {
+  grid-column: span 2;
+}
