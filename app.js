@@ -99,7 +99,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v29";
+const APP_VER = "v30";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -1713,7 +1713,7 @@ function renderSelectBar() {
 /* ---------- WhatsApp: single & selected orders ---------- */
 function accountantNum() {
   const num = (state.settings.accountant || "").replace(/\D/g, "");
-  if (!num) alert("أدخل رقم المحاسب أولاً في تبويب التقرير → الإعدادات");
+  if (!num) alert("لا يوجد رقم محاسب محفوظ لإرسال التقرير إليه.");
   return num;
 }
 function clientPhone(clientId) {
