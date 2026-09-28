@@ -9,7 +9,7 @@ let selectMode = false;
 let selected = new Set();
 
 function load() {
-  let base = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], settings: {} };
+  let base = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], bin: [], settings: {} };
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
@@ -21,6 +21,7 @@ function load() {
   if (!Array.isArray(base.ledger)) base.ledger = [];
   if (!Array.isArray(base.bookings)) base.bookings = [];
   if (!Array.isArray(base.photographerDues)) base.photographerDues = [];
+  if (!Array.isArray(base.bin)) base.bin = [];
   base.clients.forEach(c => {
     c.name = (c.name || "").trim();
     if (!c.name) c.name = "عميل";
@@ -98,7 +99,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v28";
+const APP_VER = "v29";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -381,8 +382,27 @@ function fillSettings() {
   const s = state.settings;
   const sa = $("#setAccountant"); if (sa) sa.value = s.accountant || "";
   const sc = $("#setCompany"); if (sc) sc.value = s.company || "";
-  const scr = $("#setCurrency"); if (scr) scr.value = s.currency || "ر.س";
   const sg = $("#setGoal"); if (sg) sg.value = s.targetGoal || "";
+  const scr = $("#setCurrency");
+  const scrO = $("#setCurrencyOther");
+  if (scr) {
+    const cv = s.currency || "ر.س";
+    const known = [...scr.options].some(o => o.value === cv);
+    scr.value = known ? cv : "__other";
+    if (scrO) {
+      scrO.style.display = scr.value === "__other" ? "block" : "none";
+      scrO.value = known ? "" : cv;
+    }
+  }
+  const tg = $("#themeSeg");
+  if (tg) {
+    const th = s.theme === "light" ? "light" : "dark";
+    $$("#themeSeg button").forEach(b => b.classList.toggle("active", b.dataset.theme === th));
+  }
+  const pt = $("#pinOnToggle"); if (pt) pt.checked = !!s.pinOn;
+  const rt = $("#dailyRemindToggle"); if (rt) rt.checked = !!s.dailyRemind;
+  renderServices();
+  renderBinCount();
   const tip = $("#lastBackupTip");
   if (tip) {
     if (s.lastBackup) {
@@ -538,11 +558,296 @@ function renderDashboard() {
 function saveSettings() {
   const sa = $("#setAccountant"); if (sa) state.settings.accountant = sa.value.replace(/\D/g, "");
   const sc = $("#setCompany"); if (sc) state.settings.company = sc.value.trim();
-  const scr = $("#setCurrency"); if (scr) state.settings.currency = scr.value.trim() || "ر.س";
+  const scr = $("#setCurrency");
+  if (scr) {
+    const v = scr.value;
+    const o = $("#setCurrencyOther");
+    state.settings.currency = v === "__other" ? ((o ? o.value : "") || "ر.س").trim() : v;
+  }
   const sg = $("#setGoal"); if (sg) state.settings.targetGoal = sg.value.replace(/\D/g, "");
   save();
   toast("تم حفظ الإعدادات");
   refresh();
+}
+
+/* ---------- Theme (dark / light) ---------- */
+function applyTheme() {
+  const th = state.settings.theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = th;
+}
+function setTheme(th) {
+  state.settings.theme = th === "light" ? "light" : "dark";
+  save();
+  applyTheme();
+  $$("#themeSeg button").forEach(b => b.classList.toggle("active", b.dataset.theme === th));
+  toast(th === "light" ? "☀️ الوضع الفاتح" : "🌙 الوضع الداكن");
+}
+
+/* ---------- Quick services (الخدمات السريعة) ---------- */
+function appServices() {
+  if (!Array.isArray(state.settings.services)) state.settings.services = [];
+  return state.settings.services;
+}
+function renderServices() {
+  const el = $("#svcList");
+  if (!el) return;
+  const list = appServices();
+  el.innerHTML = list.length
+    ? list.map(s => `<span class="svc-tag">🏷️ ${esc(s)}<button class="rm-mini" onclick='delService("${esc(s)}")'>✕</button></span>`).join("")
+    : `<span class="tip" style="margin:0;">لا توجد خدمات مخصصة بعد — أضف أول خدمة لتصبح زراً سريعاً.</span>`;
+}
+function addService() {
+  const inp = $("#svcInput");
+  if (!inp) return;
+  const v = inp.value.trim();
+  if (!v) return toast("اكتب اسم الخدمة");
+  const list = appServices();
+  if (list.includes(v)) return toast("الخدمة موجودة بالفعل");
+  list.push(v);
+  save();
+  inp.value = "";
+  refresh();
+  toast("تمت إضافة الخدمة 🏷️");
+}
+function delService(name) {
+  appServices();
+  state.settings.services = state.settings.services.filter(x => x !== name);
+  save();
+  refresh();
+  toast("تم حذف الخدمة");
+}
+function serviceListWithBase() {
+  const list = [];
+  appServices().forEach(s => { if (s && !list.includes(s)) list.push(s); });
+  SERVICE_OPTIONS.forEach(s => { if (!list.includes(s)) list.push(s); });
+  return list;
+}
+function svcChipsHtml() {
+  return `<div class="svc-tags" style="margin:-4px 0 12px;">${serviceListWithBase().map(s => `<button class="svc-chip" onclick="fillService('${esc(s)}')">🏷️ ${esc(s)}</button>`).join("")}</div>`;
+}
+function fillService(name) {
+  const sv = $("#oService");
+  const wrap = $("#oServiceOtherWrap");
+  if (!sv || !wrap) return;
+  const exists = [...sv.options].some(o => o.value === name);
+  if (exists) {
+    sv.value = name;
+    wrap.style.display = "none";
+  } else {
+    sv.value = "other";
+    const oo = $("#oServiceOther");
+    if (oo) oo.value = name;
+    wrap.style.display = "block";
+  }
+}
+
+/* ---------- PIN lock (قفل التطبيق) ---------- */
+let pinBuf = "", pinMsgT = null, pendingDaily = false;
+function hashPin(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return "x" + h;
+}
+function togglePinEnable() {
+  const el = $("#pinOnToggle");
+  if (!el) return;
+  if (el.checked && !state.settings.pinHash) {
+    el.checked = false;
+    return toast("اكتب الرقم السري أولاً ثم اضغط «تعيين»");
+  }
+  state.settings.pinOn = !!el.checked;
+  save();
+  toast(el.checked ? "🔒 القفل مفعّل" : "القفل متوقف");
+}
+function savePin() {
+  const inp = $("#pinNew");
+  if (!inp) return;
+  const v = inp.value.replace(/\D/g, "");
+  if (v.length < 4 || v.length > 6) return toast("الرقم السري يجب أن يكون من 4 إلى 6 أرقام");
+  state.settings.pinHash = hashPin(v);
+  state.settings.pinLen = v.length;
+  state.settings.pinOn = true;
+  const tg = $("#pinOnToggle"); if (tg) tg.checked = true;
+  save();
+  inp.value = "";
+  toast("🔐 تم تعيين القفل وتفعيله");
+}
+function maybeLock() {
+  if (!state.settings.pinOn || !state.settings.pinHash) return;
+  if ($("#pinLock")) {
+    pinBuf = "";
+    renderPinDots();
+    $("#pinLock").style.display = "flex";
+  }
+}
+function renderPinDots() {
+  const dots = $("#pinDots");
+  if (!dots) return;
+  const len = state.settings.pinLen || 4;
+  dots.innerHTML = Array.from({ length: len }, (_, i) =>
+    `<span class="pin-dot ${i < pinBuf.length ? "on" : ""}"></span>`).join("");
+}
+function pinDigit(d) {
+  if (pinBuf.length >= (state.settings.pinLen || 6)) return;
+  pinBuf += String(d);
+  renderPinDots();
+  if (pinBuf.length >= (state.settings.pinLen || 6)) setTimeout(pinCheck, 150);
+}
+function pinBack() {
+  pinBuf = pinBuf.slice(0, -1);
+  renderPinDots();
+}
+function pinCheck() {
+  if (hashPin(pinBuf) === state.settings.pinHash) {
+    const l = $("#pinLock");
+    if (l) l.style.display = "none";
+    pinBuf = "";
+    if (pendingDaily) {
+      pendingDaily = false;
+      setTimeout(showDailySummary, 300);
+    }
+    return;
+  }
+  pinBuf = "";
+  renderPinDots();
+  const msg = $("#pinMsg");
+  if (msg) {
+    msg.textContent = "الرقم السري غير صحيح — حاول مجدداً";
+    msg.style.opacity = 1;
+    clearTimeout(pinMsgT);
+    pinMsgT = setTimeout(() => { msg.style.opacity = 0; }, 1800);
+  }
+  const box = $("#pinBox");
+  if (box) {
+    box.classList.remove("shake");
+    void box.offsetWidth;
+    box.classList.add("shake");
+  }
+}
+
+/* ---------- Smart daily reminder (التذكير اليومي) ---------- */
+function saveDailyRemind() {
+  const el = $("#dailyRemindToggle");
+  if (!el) return;
+  state.settings.dailyRemind = !!el.checked;
+  save();
+  toast(el.checked ? "⚡ التذكير اليومي مفعّل" : "التذكير اليومي متوقف");
+}
+function maybeDailyRemind() {
+  if (!state.settings.dailyRemind) return;
+  const today = todayStr();
+  if (state.settings.lastRemindDay === today) return;
+  state.settings.lastRemindDay = today;
+  save();
+  if (state.settings.pinOn && state.settings.pinHash) {
+    pendingDaily = true;
+    return;
+  }
+  setTimeout(showDailySummary, 600);
+}
+function showDailySummary() {
+  const t = todayStr();
+  const todayOrders = state.orders.filter(o => o.date === t);
+  const oSum = todayOrders.reduce((a, o) => a + (Number(o.amount) || 0), 0);
+  const todayBookings = (state.bookings || []).filter(b => b.date === t && !b.done);
+  const lateBookings = (state.bookings || []).filter(b => !b.done && b.date < t);
+  const pending = state.orders.filter(o => Number(o.amount) - paidForOrder(o.id) > 0)
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const pendSum = pending.reduce((a, o) => a + (Number(o.amount) - paidForOrder(o.id)), 0);
+  let pendList = "";
+  if (pending.length) {
+    pendList = `<div class="mini-list">${pending.slice(0, 3).map(o => {
+      const rem = Number(o.amount) - paidForOrder(o.id);
+      return `<div class="mini-item"><span>👥 ${esc(o.client)} · ${esc(o.service || "اوردر")}</span><b>${fmtMoney(rem)}</b></div>`;
+    }).join("")}${pending.length > 3 ? `<div class="mini-more">+${pending.length - 3} أخرى…</div>` : ""}</div>`;
+  }
+  openSheet(`<h2>☀️ ملخص يومك</h2>
+    <p class="tip">${fmtDate(t)} — لنبدأ يوم جديد بتركيز!</p>
+    <div class="daily-wrap">
+      <div class="daily-row"><span>📦 اوردرات اليوم</span><b>${todayOrders.length} · ${fmtMoney(oSum)}</b></div>
+      <div class="daily-row"><span>📅 حجوزات اليوم</span><b>${todayBookings.length}</b></div>
+      <div class="daily-row"><span>⏰ حجوزات فائتة/مستحقة</span><b>${lateBookings.length}</b></div>
+      <div class="daily-row"><span>🧾 إجمالي المتأخرات</span><b>${pending.length} · ${fmtMoney(pendSum)}</b></div>
+    </div>
+    ${pendList}
+    <div class="actions" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="closeSheet();go('orders')">📦 عرض الاوردرات</button>
+      <button class="btn btn-dark" onclick="closeSheet()">حسناً</button>
+    </div>`);
+}
+
+/* ---------- Recycle bin (سلة المحذوفات) ---------- */
+function putInBin(type, item) {
+  if (!Array.isArray(state.bin)) state.bin = [];
+  state.bin.push({ id: uid(), type, item, at: Date.now() });
+  if (state.bin.length > 100) state.bin.shift();
+}
+function binList() {
+  if (!Array.isArray(state.bin)) state.bin = [];
+  const cutoff = Date.now() - 30 * 86400000;
+  return state.bin.filter(b => (b.at || 0) >= cutoff);
+}
+function renderBinCount() {
+  const el = $("#binCount");
+  if (el) el.textContent = binList().length;
+}
+function binLabel(b) {
+  const it = b.item || {};
+  if (b.type === "order") return { icon: "📦", title: `${it.client || "عميل"} · ${it.service || "اوردر"}${it.amount ? " · " + fmtMoney(it.amount) : ""}` };
+  if (b.type === "payment") return { icon: "💰", title: `${it.client || "عميل"} · ${fmtMoney(it.amount)}${it.method ? " · " + it.method : ""}` };
+  if (b.type === "client") return { icon: "👥", title: it.name || "عميل" };
+  if (b.type === "ledger") return { icon: "📒", title: `${it.title || "بند"} · ${it.client || ""}` };
+  if (b.type === "booking") return { icon: "📅", title: it.title || "حجز" };
+  if (b.type === "due") return { icon: "🤝", title: `${it.name || "مصور"} · ${fmtMoney(it.amount)}` };
+  return { icon: "🗂️", title: "عنصر" };
+}
+function openBinSheet() {
+  let list = binList();
+  if (!Array.isArray(state.bin)) state.bin = [];
+  state.bin = state.bin.filter(b => list.some(x => x.id === b.id));
+  list = binList();
+  if (!list.length) return toast("السلة فارغة");
+  openSheet(`<h2>🗑️ سلة المحذوفات</h2>
+    <p class="tip">عناصر حذفت خلال آخر 30 يوم. اضغط «استرجاع» لإرجاعها لمكانها.</p>
+    ${list.map(b => {
+      const lb = binLabel(b);
+      const d = new Date(b.at || Date.now()).toISOString().slice(0, 10);
+      return `<div class="item">
+        <div class="top">
+          <div>
+            <div class="name">${lb.icon} ${esc(lb.title)}</div>
+            <div class="meta"><span>🗑️ حذف: ${fmtDate(d)}</span></div>
+          </div>
+        </div>
+        <div class="actions-inline">
+          <button class="btn btn-green btn-slim" onclick='restoreFromBin("${b.id}")'>↩️ استرجاع</button>
+        </div>
+      </div>`;
+    }).join("")}
+    <button class="btn btn-danger btn-block" style="margin-top:10px;" onclick="emptyBin()">🗑️ تفريغ السلة</button>`);
+}
+function restoreFromBin(binId) {
+  const b = state.bin.find(x => x.id === binId);
+  if (!b) return;
+  if (b.type === "order") state.orders.push(b.item);
+  else if (b.type === "payment") state.payments.push(b.item);
+  else if (b.type === "client") { if (!clientById(b.item.id)) state.clients.push(b.item); }
+  else if (b.type === "ledger") { if (!Array.isArray(state.ledger)) state.ledger = []; state.ledger.push(b.item); }
+  else if (b.type === "booking") { if (!Array.isArray(state.bookings)) state.bookings = []; state.bookings.push(b.item); }
+  else if (b.type === "due") { if (!Array.isArray(state.photographerDues)) state.photographerDues = []; state.photographerDues.push(b.item); }
+  state.bin = state.bin.filter(x => x.id !== binId);
+  save();
+  closeSheet();
+  refresh();
+  toast("تم الاسترجاع ✔");
+}
+function emptyBin() {
+  if (!confirm("تفريغ السلة نهائياً؟ لا يمكن التراجع.")) return;
+  state.bin = [];
+  save();
+  closeSheet();
+  refresh();
+  toast("تم تفريغ السلة");
 }
 
 /* --- Modals sheet stack: back returns to previous --- */
@@ -564,8 +869,18 @@ function refresh() {
   rebuildSheets();
 }
 refresh();
+applyTheme();
 maybeBackupReminder();
 maybeAutoBackup();
+maybeDailyRemind();
+maybeLock();
+const curSelEl = $("#setCurrency");
+if (curSelEl) {
+  curSelEl.addEventListener("change", () => {
+    const o = $("#setCurrencyOther");
+    if (o) o.style.display = curSelEl.value === "__other" ? "block" : "none";
+  });
+}
 
 /* ---------- Modals (sheet stack: back returns to previous) ---------- */
 function openSheet(html, tag) {
@@ -859,6 +1174,7 @@ function delLedger(entryId) {
   const e = (state.ledger || []).find(x => x.id === entryId);
   if (!e) return;
   if (!confirm("حذف هذا البند نهائياً؟")) return;
+  putInBin("ledger", e);
   const cid = e.clientId;
   state.ledger = state.ledger.filter(x => x.id !== entryId);
   save();
@@ -921,6 +1237,8 @@ function delClient(id) {
   const cnt = ordersOfClient(id).length + ledgerOfClient(id).length;
   if (cnt > 0) { toast("لا يمكن حذف عميل لديه اوردرات أو بنود مديونية"); return; }
   if (!confirm("حذف هذا العميل نهائياً؟")) return;
+  const c = state.clients.find(x => x.id === id);
+  if (c) putInBin("client", c);
   state.clients = state.clients.filter(x => x.id !== id);
   save();
   closeSheet();
@@ -938,7 +1256,8 @@ function exportClientPDF(id) {
 
 function showOrderModal(id, clientId) {
   const o = id ? state.orders.find(x => x.id === id) : null;
-  const isCustom = o && !SERVICE_OPTIONS.includes(o.service);
+  const svcList = serviceListWithBase();
+  const isCustom = o && !svcList.includes(o.service);
   const selClientId = o ? o.clientId : (clientId || "");
   const clientOpts = `
     <option value="__new">➕ عميل جديد...</option>
@@ -958,12 +1277,13 @@ function showOrderModal(id, clientId) {
     <div class="field"><label>المبلغ *</label><input id="oAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${o ? o.amount : ""}" placeholder="0"></div>
     <div class="field"><label>نوع الخدمة</label><select id="oService">
       <option value="">— اختر —</option>
-      ${SERVICE_OPTIONS.map(s => `<option ${o && o.service === s ? "selected" : ""}>${s}</option>`).join("")}
+      ${svcList.map(s => `<option ${o && o.service === s ? "selected" : ""}>${s}</option>`).join("")}
       <option value="other" ${isCustom ? "selected" : ""}>أخرى</option>
     </select></div>
     <div class="field" id="oServiceOtherWrap" style="display:${isCustom ? "block" : "none"}">
       <label>اكتب الخدمة</label><input id="oServiceOther" value="${isCustom ? esc(o.service) : ""}" placeholder="اسم الخدمة">
     </div>
+    ${svcChipsHtml()}
     <div class="field"><label>التاريخ</label><input id="oDate" type="date" value="${o ? o.date : todayStr()}"></div>
     <div class="field"><label>تفاصيل</label><textarea id="oDetails" placeholder="المكان، عدد الصور، الملاحظات...">${esc(o ? o.details : "")}</textarea></div>
     <button class="btn btn-primary btn-block" onclick="saveOrder('${id || ""}')">${o ? "حفظ التعديل" : "حفظ الاوردر"}</button>
@@ -1118,6 +1438,8 @@ function orderActionsHtml(id) {
 
 function delOrder(id) {
   if (!confirm("حذف هذا الاوردر؟")) return;
+  const o = state.orders.find(x => x.id === id);
+  if (o) putInBin("order", o);
   state.orders = state.orders.filter(x => x.id !== id);
   state.payments.forEach(p => { if (p.orderId === id) p.orderId = ""; });
   save();
@@ -1126,6 +1448,8 @@ function delOrder(id) {
 }
 function delPayment(id) {
   if (!confirm("حذف هذه الدفعة؟")) return;
+  const p = state.payments.find(x => x.id === id);
+  if (p) putInBin("payment", p);
   state.payments = state.payments.filter(x => x.id !== id);
   save();
   refresh();
@@ -1265,6 +1589,8 @@ function toggleBookingDone(id) {
 }
 function delBooking(id) {
   if (!confirm("حذف هذا الحجز؟")) return;
+  const b = (state.bookings || []).find(x => x.id === id);
+  if (b) putInBin("booking", b);
   state.bookings = (state.bookings || []).filter(x => x.id !== id);
   save();
   refresh();
@@ -1351,6 +1677,8 @@ function savePhotographerDue(id) {
 }
 function delPhotographerDue(id) {
   if (!confirm("حذف هذا المستحق؟")) return;
+  const d = (state.photographerDues || []).find(x => x.id === id);
+  if (d) putInBin("due", d);
   state.photographerDues = (state.photographerDues || []).filter(x => x.id !== id);
   save();
   refresh();
@@ -2023,6 +2351,7 @@ function importJSON() {
       ledger: Array.isArray(d.ledger) ? d.ledger : [],
       bookings: Array.isArray(d.bookings) ? d.bookings : [],
       photographerDues: Array.isArray(d.photographerDues) ? d.photographerDues : [],
+      bin: Array.isArray(d.bin) ? d.bin : [],
       settings: Object.assign({}, state.settings, d.settings || {})
     };
     save();
@@ -2037,7 +2366,7 @@ function importJSON() {
 function confirmClear() {
   if (!confirm("حذف كل البيانات نهائياً؟ لا يمكن التراجع!")) return;
   if (!confirm("تأكيد أخير: هل أنت متأكد تماماً؟")) return;
-  state = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], settings: state.settings };
+  state = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], bin: [], settings: state.settings };
   save();
   refresh();
   toast("تم مسح كل البيانات");
