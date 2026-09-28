@@ -493,3 +493,72 @@ nav button.active .ic { transform: translateY(-1px) scale(1.1); }
 .sheet-grid .btn.full-width {
   grid-column: span 2;
 }
+
+/* ---------- Settings Screen Sub-Tabs & Goals ---------- */
+.settings-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+.sub-tabs {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-top: 12px;
+}
+.sub-tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 4px;
+  cursor: pointer;
+  border-radius: 9px;
+  transition: all .15s;
+  font-family: inherit;
+  text-align: center;
+}
+.sub-tab-btn.active {
+  background: var(--card2);
+  color: var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .2);
+}
+.sub-tab-content {
+  display: none;
+}
+.sub-tab-content.active {
+  display: block;
+}
+
+/* --- Goal Circular Card --- */
+.goal-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, .75), rgba(15, 23, 42, .9));
+  border: 1px solid var(--border); border-radius: 20px; padding: 18px 16px; margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.goal-header-text { font-size: 13px; font-weight: 800; color: var(--muted); margin-bottom: 12px; }
+.goal-body { display: flex; align-items: center; gap: 16px; }
+.goal-circle { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+.circular-chart { display: block; max-width: 100%; max-height: 100%; }
+.circle-bg { fill: none; stroke: rgba(255, 255, 255, .05); stroke-width: 3.2; }
+.circle-fill {
+  fill: none; stroke: url(#goalGrad); stroke-width: 3.2; stroke-linecap: round;
+  transition: stroke-dasharray .3s ease;
+}
+.goal-percentage {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 900; color: var(--accent);
+}
+.goal-details { flex: 1; }
+.goal-collected-lbl { font-size: 11px; color: var(--muted); font-weight: 700; }
+.goal-collected-val { font-size: 20px; font-weight: 900; color: var(--ok); margin: 2px 0 4px; }
+.goal-target-lbl { font-size: 11px; color: var(--muted); font-weight: 700; }
+.goal-status-msg {
+  font-size: 11px; color: var(--muted); font-weight: 700; margin-top: 10px;
+  padding-top: 8px; border-top: 1px dashed var(--border);
+}

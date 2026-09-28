@@ -98,7 +98,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v27";
+const APP_VER = "v28";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -379,9 +379,10 @@ function renderClients() {
 
 function fillSettings() {
   const s = state.settings;
-  $("#setAccountant").value = s.accountant || "";
-  $("#setCompany").value = s.company || "";
-  $("#setCurrency").value = s.currency || "ر.س";
+  const sa = $("#setAccountant"); if (sa) sa.value = s.accountant || "";
+  const sc = $("#setCompany"); if (sc) sc.value = s.company || "";
+  const scr = $("#setCurrency"); if (scr) scr.value = s.currency || "ر.س";
+  const sg = $("#setGoal"); if (sg) sg.value = s.targetGoal || "";
   const tip = $("#lastBackupTip");
   if (tip) {
     if (s.lastBackup) {
@@ -452,10 +453,93 @@ function maybeAutoBackup() {
 }
 let autoBackupRan = false;
 
+/* ---------- Sub-Tabs & Dashboard ---------- */
+function setSubTab(tab) {
+  $$(".sub-tab-btn").forEach(b => b.classList.toggle("active", b.dataset.sub === tab));
+  $$(".sub-tab-content").forEach(s => s.classList.toggle("active", s.id === "sub-tab-" + tab));
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const s = state.settings;
+  const target = Number(s.targetGoal) || 0;
+  const m = $("#monthFilter").value;
+  const pList = m === "all" || !m ? state.payments : state.payments.filter(p => inMonth(p.date, m));
+  const collected = pList.reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  
+  const fill = $("#goalCircleFill");
+  const percentText = $("#goalPercentText");
+  const colVal = $("#goalCollectedVal");
+  const tarVal = $("#goalTargetVal");
+  const msg = $("#goalStatusMsg");
+  
+  if (colVal) colVal.textContent = fmtMoney(collected);
+  if (tarVal) tarVal.textContent = target > 0 ? fmtMoney(target) : "لم يحدد";
+  
+  if (target > 0) {
+    const pct = Math.min(100, Math.round((collected / target) * 100));
+    if (fill) fill.setAttribute("stroke-dasharray", `${pct}, 100`);
+    if (percentText) percentText.textContent = `${pct}%`;
+    
+    if (msg) {
+      if (pct >= 100) {
+        msg.innerHTML = "🏆 <b>مبروك!</b> لقد تجاوزت هدفك المالي لهذا الشهر! استمر في التقدم.";
+        msg.style.color = "var(--ok)";
+      } else if (pct >= 75) {
+        msg.innerHTML = "💪 أوشكت على الوصول! أنت قريب جداً من تحقيق الهدف.";
+        msg.style.color = "var(--accent)";
+      } else if (pct >= 50) {
+        msg.innerHTML = "📈 لقد قطعت نصف الطريق! واصل كفاحك للأيام القادمة.";
+        msg.style.color = "var(--accent-2)";
+      } else {
+        msg.innerHTML = `🎯 يتبقى لك <b>${fmtMoney(target - collected)}</b> للوصول لهدفك الشهري.`;
+        msg.style.color = "var(--muted)";
+      }
+    }
+  } else {
+    if (fill) fill.setAttribute("stroke-dasharray", "0, 100");
+    if (percentText) percentText.textContent = "0%";
+    if (msg) msg.innerHTML = "💡 يمكنك تحديد هدف مالي شهري من تبويب الإعدادات لمتابعة تقدمك.";
+  }
+
+  const oList = m === "all" || !m ? state.orders : state.orders.filter(o => inMonth(o.date, m));
+  const totalOrders = oList.length;
+  const chart = $("#servicesChartWrap");
+  if (!chart) return;
+  
+  if (!totalOrders) {
+    chart.innerHTML = `<div class="empty" style="padding:15px 0;">لا توجد أوردرات مسجلة لهذه الفترة للتحليل.</div>`;
+    return;
+  }
+  
+  const counts = {};
+  oList.forEach(o => {
+    const svc = (o.service || "أخرى").trim();
+    counts[svc] = (counts[svc] || 0) + 1;
+  });
+  
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  chart.innerHTML = sorted.map(([svc, count]) => {
+    const pct = Math.round((count / totalOrders) * 100);
+    return `
+      <div class="svc-row">
+        <div class="svc-top">
+          <span>🎬 ${esc(svc)}</span>
+          <span class="svc-meta">${count} طلب (${pct}%)</span>
+        </div>
+        <div class="svc-bar">
+          <div class="svc-fill" style="width: ${pct}%;"></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 function saveSettings() {
-  state.settings.accountant = $("#setAccountant").value.replace(/\D/g, "");
-  state.settings.company = $("#setCompany").value.trim();
-  state.settings.currency = $("#setCurrency").value.trim() || "ر.س";
+  const sa = $("#setAccountant"); if (sa) state.settings.accountant = sa.value.replace(/\D/g, "");
+  const sc = $("#setCompany"); if (sc) state.settings.company = sc.value.trim();
+  const scr = $("#setCurrency"); if (scr) state.settings.currency = scr.value.trim() || "ر.س";
+  const sg = $("#setGoal"); if (sg) state.settings.targetGoal = sg.value.replace(/\D/g, "");
   save();
   toast("تم حفظ الإعدادات");
   refresh();
@@ -473,6 +557,7 @@ function refresh() {
   renderBookings();
   renderPhotographerDues();
   renderReport();
+  renderDashboard();
   fillSettings();
   fillBackupSettings();
   renderSelectBar();
@@ -1737,7 +1822,22 @@ $("#reportRangeSeg").addEventListener("click", e => {
   renderReport();
 });
 
+$("#reportStart").addEventListener("change", renderReport);
+$("#reportEnd").addEventListener("change", renderReport);
+
 function reportData() {
+  if (reportRange === "custom") {
+    const startVal = $("#reportStart").value;
+    const endVal = $("#reportEnd").value;
+    if (!startVal || !endVal) {
+      return { orders: [], payments: [], label: "حدد التاريخين للفترة المخصصة" };
+    }
+    return {
+      orders: state.orders.filter(o => o.date >= startVal && o.date <= endVal),
+      payments: state.payments.filter(p => p.date >= startVal && p.date <= endVal),
+      label: `من ${fmtDate(startVal)} إلى ${fmtDate(endVal)}`
+    };
+  }
   if (reportRange === "all") {
     return { orders: state.orders.slice(), payments: state.payments.slice(), label: "كل الفترات" };
   }
@@ -1767,7 +1867,6 @@ function buildReport() {
   txt += "━━━━━━━━━━━━━━\n";
   txt += `📦 اجمالي الاوردرات: ${fmtMoney(oSum)}\n`;
   txt += `💰 المدفوعات: ${fmtMoney(pSum)}\n`;
-  txt += `🧾 المصروفات: ${fmtMoney(eSum)}\n`;
   txt += `📌 المتبقي للتحصيل: ${fmtMoney(due > 0 ? due : 0)}\n`;
   if (due < 0) txt += `⚠️ مدفوعات زائدة عن الاوردرات: ${fmtMoney(Math.abs(due))}\n`;
   txt += "━━━━━━━━━━━━━━\n\n";
@@ -1809,6 +1908,8 @@ function buildReport() {
 }
 
 function renderReport() {
+  const wrap = $("#customDateRangeWrap");
+  if (wrap) wrap.style.display = reportRange === "custom" ? "flex" : "none";
   const d = reportData();
   const oSum = d.orders.reduce((a, x) => a + (Number(x.amount) || 0), 0);
   const pSum = d.payments.reduce((a, x) => a + (Number(x.amount) || 0), 0);
