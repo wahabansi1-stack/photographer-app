@@ -99,7 +99,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v31";
+const APP_VER = "v32";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -454,7 +454,7 @@ function backupNum() {
 }
 function sendAutoBackup(manual) {
   const num = backupNum();
-  if (!num) return toast("أدخل رقم واتسابك أولاً في تبويب التقرير");
+  if (!num) return toast("أدخل رقم واتسابك أولاً في الإعدادات → تصدير (النسخة الاحتياطية)");
   state.settings.lastBackup = Date.now();
   if (manual) state.settings.lastAutoBackup = Date.now();
   save();
@@ -740,8 +740,6 @@ function maybeDailyRemind() {
   if (!state.settings.dailyRemind) return;
   const today = todayStr();
   if (state.settings.lastRemindDay === today) return;
-  state.settings.lastRemindDay = today;
-  save();
   if (state.settings.pinOn && state.settings.pinHash) {
     pendingDaily = true;
     return;
@@ -749,6 +747,8 @@ function maybeDailyRemind() {
   setTimeout(showDailySummary, 600);
 }
 function showDailySummary() {
+  state.settings.lastRemindDay = todayStr();
+  save();
   const t = todayStr();
   const todayOrders = state.orders.filter(o => o.date === t);
   const oSum = todayOrders.reduce((a, o) => a + (Number(o.amount) || 0), 0);
@@ -1221,7 +1221,7 @@ function sendClientWhatsApp(id) {
   const c = clientById(id);
   if (!c) { toast("العميل غير موجود"); return; }
   const num = clientPhone(id) || accountantNum();
-  if (!num) return;
+  if (!num) return toast("لا يوجد رقم واتساب للعميل ولا محاسب محفوظ");
   const ids = ordersOfClient(id).map(o => o.id);
   if (!ids.length) { toast("لا يوجد اوردرات لهذا العميل"); return; }
   let msg = buildOrdersReport(ids, "اوردرات العميل: " + c.name);
@@ -1603,7 +1603,7 @@ function sendBookingWhatsApp(id) {
   const b = (state.bookings || []).find(x => x.id === id);
   if (!b) return;
   const num = (b.clientId && clientPhone(b.clientId)) || accountantNum();
-  if (!num) return;
+  if (!num) return toast("لا يوجد رقم واتساب لهذا الحجز — أضف رقم العميل");
   let txt = `📅 حجز تصوير — ${b.title}\n📅 ${fmtDate(b.date)}${b.time ? " · ⏰ " + b.time : ""}\n`;
   if (b.client) txt += `👥 العميل: ${b.client}\n`;
   if (b.details) txt += `📝 ${b.details}\n`;
@@ -1715,9 +1715,7 @@ function renderSelectBar() {
 
 /* ---------- WhatsApp: single & selected orders ---------- */
 function accountantNum() {
-  const num = (state.settings.accountant || "").replace(/\D/g, "");
-  if (!num) alert("لا يوجد رقم محاسب محفوظ لإرسال التقرير إليه.");
-  return num;
+  return (state.settings.accountant || "").replace(/\D/g, "");
 }
 function clientPhone(clientId) {
   const c = clientById(clientId);
@@ -1768,7 +1766,7 @@ function sendOrderWhatsApp(id) {
   const o = state.orders.find(x => x.id === id);
   if (!o) return;
   const num = clientPhone(o.clientId) || accountantNum();
-  if (!num) return;
+  if (!num) return toast("لا يوجد رقم واتساب للعميل ولا محاسب محفوظ");
   openWhatsApp(num, buildOrdersReport([id], "اوردر"), o.client);
 }
 
@@ -1788,7 +1786,7 @@ function sendWhatsAppSelected() {
     num = accountantNum();
     label = "المحاسب";
   }
-  if (!num) return;
+  if (!num) return toast("لا يوجد رقم واتساب متاح لإرسال الاوردرات المحددة");
   openWhatsApp(num, buildOrdersReport(ids, "مراجعة اوردرات"), label);
   cancelSelect();
 }
@@ -2183,6 +2181,19 @@ function reportData() {
   };
 }
 
+function inReportRange(dateStr) {
+  if (reportRange === "custom") {
+    const startVal = $("#reportStart").value;
+    const endVal = $("#reportEnd").value;
+    if (!startVal || !endVal) return true;
+    return dateStr >= startVal && dateStr <= endVal;
+  }
+  if (reportRange === "all") return true;
+  const m = $("#monthFilter").value;
+  if (!m || m === "all") return true;
+  return inMonth(dateStr, m);
+}
+
 function buildReport() {
   const d = reportData();
   const s = state.settings;
@@ -2296,7 +2307,7 @@ async function copyReport() {
 
 function sendWhatsApp() {
   const num = accountantNum();
-  if (!num) return;
+  if (!num) return toast("لا يوجد رقم محاسب محفوظ لإرسال التقرير");
   openWhatsApp(num, buildReport());
 }
 
@@ -2320,13 +2331,14 @@ function csvCell(v) {
 function exportCSV() {
   const rows = [];
   rows.push(["النوع", "التاريخ", "الاسم/التصنيف", "الخدمة/الطريقة", "المبلغ", "ملاحظات"].map(csvCell).join(","));
-  state.orders.forEach(o => rows.push(["اوردر", o.date, o.client, o.service || "", o.amount, o.details || ""].map(csvCell).join(",")));
-  state.payments.forEach(p => rows.push(["دفعة", p.date, p.client, p.method || "", p.amount, p.details || ""].map(csvCell).join(",")));
-  (state.ledger || []).forEach(l => rows.push(["بند مديونية", l.date, l.client, l.title || "", l.amount, "مسدد: " + (Number(l.paid) || 0) + (l.details ? " · " + l.details : "")].map(csvCell).join(",")));
-  (state.bookings || []).forEach(b => rows.push(["حجز", b.date + (b.time ? " " + b.time : ""), b.client || "", b.title || "", b.done ? "تم" : "مجدول", b.details || ""].map(csvCell).join(",")));
+  const d = reportData();
+  d.orders.forEach(o => rows.push(["اوردر", o.date, o.client, o.service || "", o.amount, o.details || ""].map(csvCell).join(",")));
+  d.payments.forEach(p => rows.push(["دفعة", p.date, p.client, p.method || "", p.amount, p.details || ""].map(csvCell).join(",")));
+  (state.ledger || []).filter(l => inReportRange(l.date)).forEach(l => rows.push(["بند مديونية", l.date, l.client, l.title || "", l.amount, "مسدد: " + (Number(l.paid) || 0) + (l.details ? " · " + l.details : "")].map(csvCell).join(",")));
+  (state.bookings || []).filter(b => inReportRange(b.date)).forEach(b => rows.push(["حجز", b.date + (b.time ? " " + b.time : ""), b.client || "", b.title || "", b.done ? "تم" : "مجدول", b.details || ""].map(csvCell).join(",")));
   const b = "\uFEFF" + rows.join("\r\n");
   exportFile("تقرير-الاوردرات.csv", "text/csv;charset=utf-8", b);
-  toast("تم تصدير ملف Excel (CSV)");
+  toast("تم تصدير ملف Excel (CSV) حسب الفترة المحددة");
 }
 
 function exportJSON() {
