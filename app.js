@@ -99,7 +99,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v30";
+const APP_VER = "v31";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -132,10 +132,13 @@ function buildMonths() {
   ["orders", "payments"].forEach(k => state[k].forEach(x => set.add(monthOf(x.date))));
   set.add(currentMonth());
   const months = [...set].filter(Boolean).sort().reverse();
-  const sel = $("#monthFilter");
   if (!months.length) months.push(currentMonth());
-  sel.innerHTML = months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join("") +
+  const sel = $("#monthFilter");
+  const prev = sel.value;
+  const opts = months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join("") +
     `<option value="all">كل الفترات</option>`;
+  if (sel.innerHTML !== opts) sel.innerHTML = opts;
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
   if (!sel.value) sel.value = currentMonth();
 }
 function monthLabel(m) {
