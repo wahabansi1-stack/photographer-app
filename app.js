@@ -48,8 +48,17 @@ function load() {
   });
   return base;
 }
+let saveWarned = false;
 function save() {
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("storage write failed", e);
+    if (!saveWarned) {
+      saveWarned = true;
+      setTimeout(() => alert("⚠️ تعذر حفظ البيانات في هذا المتصفح (المساحة ممتلئة أو وضع التصفح الخاص). العملية ستُفقد عند إغلاق التطبيق — انسخ نسخة احتياطية الآن من الإعدادات ← تصدير."), 300);
+    }
+  }
 }
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -99,7 +108,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v32";
+const APP_VER = "v33";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -134,7 +143,7 @@ function buildMonths() {
   const months = [...set].filter(Boolean).sort().reverse();
   if (!months.length) months.push(currentMonth());
   const sel = $("#monthFilter");
-  const prev = sel.value;
+  const prev = sel.value || state.settings.monthSel || "";
   const opts = months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join("") +
     `<option value="all">كل الفترات</option>`;
   if (sel.innerHTML !== opts) sel.innerHTML = opts;
@@ -147,7 +156,11 @@ function monthLabel(m) {
     return d.toLocaleDateString("ar-EG-u-nu-latn", { month: "long", year: "numeric" });
   } catch (e) { return m; }
 }
-$("#monthFilter").addEventListener("change", refresh);
+$("#monthFilter").addEventListener("change", e => {
+  state.settings.monthSel = e.target.value;
+  save();
+  refresh();
+});
 
 /* ---------- Data accessors ---------- */
 function filtered(kind) {
@@ -213,9 +226,9 @@ function renderHome() {
   const mm = m;
   const pickArr = arr => (mm === "all" || !mm ? arr : arr.filter(x => inMonth(x.date, mm)));
   const items = [];
-  pickArr(state.payments).forEach(x => items.push({ t: "💰", d: x.date, client: x.client, amount: x.amount, extra: x.method || "", cls: "pay" }));
-  pickArr(state.orders).forEach(x => items.push({ t: "📦", d: x.date, client: x.client, amount: x.amount, extra: x.service || "", cls: "orders" }));
-  items.sort((a, b) => (a.d < b.d ? 1 : -1));
+  pickArr(state.payments).slice().reverse().forEach(x => items.push({ t: "💰", d: x.date, client: x.client, amount: x.amount, extra: x.method || "", cls: "pay" }));
+  pickArr(state.orders).slice().reverse().forEach(x => items.push({ t: "📦", d: x.date, client: x.client, amount: x.amount, extra: x.service || "", cls: "orders" }));
+  items.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
   $("#recentCount").textContent = items.length;
   $("#recentList").innerHTML = items.length ? items.slice(0, 10).map(i => `
     <div class="item ${i.cls}">
