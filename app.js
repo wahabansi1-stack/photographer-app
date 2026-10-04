@@ -108,7 +108,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v33";
+const APP_VER = "v34";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -1335,6 +1335,7 @@ function showPaymentModal(orderId, clientId, payId) {
   const methods = ["نقدي", "تحويل بنكي", "شبكة", "آبل باي", "تحصيلات"];
   const mSel = ex ? ex.method : "";
   const oSel = ex ? ex.orderId : (order ? order.id : "");
+  const prefillCid = clientId || (ex ? ((state.orders.find(x => x.id === (ex.orderId || "")) || {}).clientId || "") : "");
   openSheet(`
     <h2>${ex ? "✏️ تعديل دفعة" : "💰 تسجيل دفعة"}</h2>
     <div class="field"><label>اسم العميل *</label><input id="pClient" value="${esc(prefill)}" placeholder="مثال: أم محمد"></div>
@@ -1349,6 +1350,10 @@ function showPaymentModal(orderId, clientId, payId) {
     ${oSel && order
       ? `<input type="hidden" id="pOrder" value="${oSel}">`
       : `<div class="field"><label>ربط باوردر (اختياري)</label><select id="pOrder">${orderSelectOptions(oSel)}</select></div>`}
+    <input type="hidden" id="pClientId" value="${prefillCid}">
+    ${prefillCid && !oSel && !ex
+      ? `<div class="field"><label class="autoapply"><input type="checkbox" id="pAutoApply" checked> خصم الدفعة من «متبقي» اوردرات العميل تلقائيًا</label></div>`
+      : ""}
     <div class="field"><label>ملاحظات</label><input id="pDetails" value="${esc(ex ? ex.details : "")}" placeholder="دفعة مقدمة، دفعة شفهية..."></div>
     <button class="btn btn-primary btn-block" onclick="savePayment('${ex ? ex.id : ""}')">${ex ? "حفظ التعديل" : "حفظ الدفعة"}</button>
   `);
@@ -1402,24 +1407,40 @@ function savePayment(id) {
   if (!client) return toast("اكتب اسم العميل");
   if (!(amount > 0)) return toast("اكتب مبلغ صحيح");
   const orderId = $("#pOrder") ? $("#pOrder").value : "";
-  const data = {
-    client,
-    amount,
-    method: $("#pMethod").value,
-    date: $("#pDate").value || todayStr(),
-    orderId: orderId || "",
-    details: $("#pDetails").value.trim()
-  };
+  const details = $("#pDetails").value.trim();
+  const date = $("#pDate").value || todayStr();
+  const method = $("#pMethod").value;
+  const finalize = n => { save(); closeSheet(); refresh(); toast(n); };
   if (id) {
     const p = state.payments.find(x => x.id === id);
-    if (p) Object.assign(p, data);
-  } else {
-    state.payments.push(Object.assign({ id: uid() }, data));
+    if (p) Object.assign(p, { client, amount, method, date, orderId: orderId || "", details });
+    return finalize("تم حفظ التعديل");
   }
-  save();
-  closeSheet();
-  refresh();
-  toast(id ? "تم حفظ التعديل" : "تم تسجيل الدفعة");
+  const cid = $("#pClientId") ? $("#pClientId").value : "";
+  const autoApply = !!($("#pAutoApply") && $("#pAutoApply").checked && cid && !orderId);
+  if (autoApply) {
+    const open = state.orders
+      .filter(o => o.clientId === cid)
+      .map(o => ({ o, paid: paidForOrder(o.id) }))
+      .filter(x => x.paid < Number(x.o.amount))
+      .sort((a, b) => (a.o.date > b.o.date ? 1 : -1));
+    let rem = amount;
+    const created = [];
+    for (const x of open) {
+      if (rem <= 0) break;
+      const need = Number(x.o.amount) - x.paid;
+      const take = Math.min(need, rem);
+      created.push({ id: uid(), client, amount: take, method, date, orderId: x.o.id, details });
+      rem -= take;
+    }
+    state.payments.push(...created);
+    if (rem > 0) state.payments.push({ id: uid(), client, amount: rem, method, date, orderId: "", details });
+    return finalize(created.length
+      ? (created.length === 1 ? "✅ تم تسجيل الدفعة وتخفيض متبقي الاوردر" : `✅ وزّعت الدفعة على ${created.length} اوردرات`)
+      : "تم تسجيل الدفعة");
+  }
+  state.payments.push({ id: uid(), client, amount, method, date, orderId: orderId || "", details });
+  finalize("تم تسجيل الدفعة");
 }
 
 function showOrderActions(id) {

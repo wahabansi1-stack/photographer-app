@@ -742,3 +742,7 @@ nav button.active .ic { transform: translateY(-1px) scale(1.1); }
     linear-gradient(180deg, #eef2f8, #f8fafc 60%, #f1f5f9);
 }
 [data-theme="light"] .pin-box { background: rgba(255, 255, 255, .9); }
+
+/* auto-apply payment checkbox */
+.autoapply { display: flex !important; align-items: center; gap: 8px; font-weight: 700; color: var(--text); }
+.autoapply input { width: 18px; height: 18px; accent-color: var(--accent); }
