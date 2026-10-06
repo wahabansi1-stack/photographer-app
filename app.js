@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v39";
+const APP_VER = "v40";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -2148,6 +2148,40 @@ function wrapText(ctx, text, maxW) {
   return lines;
 }
 
+/* ---------- الخط: تحميل خط ثمانية قبل الرسم ---------- */
+const INVOICE_FONT = '"Thmanyah Sans", -apple-system, "SF Arabic", "Segoe UI", Arial, sans-serif';
+function ensureInvoiceFont() {
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  const specs = ['400 24px "Thmanyah Sans"', '700 24px "Thmanyah Sans"', '900 34px "Thmanyah Sans"'];
+  return Promise.all(specs.map(s => document.fonts.load(s).catch(() => null)))
+    .then(() => (document.fonts.ready ? document.fonts.ready : null))
+    .catch(() => null);
+}
+function rrPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+function roundRect(ctx, x, y, w, h, r) {
+  rrPath(ctx, x, y, w, h, r);
+  ctx.fill();
+}
+function pill(ctx, x, y, w, h, text, fg, bg) {
+  rrPath(ctx, x, y, w, h, h / 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = '700 20px ' + INVOICE_FONT;
+  ctx.fillText(text, x + w / 2, y + h / 2 + 1);
+}
+
 function buildInvoiceCanvas(orders, title) {
   const s = state.settings;
   const company = s.company || "دفتر التصوير";
@@ -2156,37 +2190,38 @@ function buildInvoiceCanvas(orders, title) {
   const due = oSum - pSum;
 
   const W = 1240;
-  const LM = 70;
-  const RM = 70;
+  const LM = 64;
+  const RM = 64;
   const contentW = W - LM - RM;
-  const FONT_FAMILY = "-apple-system, 'SF Arabic', 'Segoe UI', Arial, sans-serif";
+  const INK = "#0f172a", MUT = "#64748b", LINE = "#e8edf5", ALT = "#f7f9fc";
+  const IND = "#4f46e5", VIO = "#7c3aed", CYA = "#0891b2", GRN = "#059669", AMB = "#b45309";
 
   const cols = [
-    { key: "num", label: "#", w: 60, align: "center" },
-    { key: "date", label: "التاريخ", w: 185, align: "center" },
-    { key: "service", label: "الخدمة", w: 245, align: "right" },
+    { key: "num", label: "#", w: 62, align: "center" },
+    { key: "date", label: "التاريخ", w: 190, align: "center" },
+    { key: "service", label: "الخدمة", w: 250, align: "right" },
     { key: "details", label: "التفاصيل", w: 0, align: "right" },
-    { key: "amount", label: "المبلغ", w: 205, align: "center" },
-    { key: "status", label: "الحالة", w: 205, align: "center" }
+    { key: "amount", label: "المبلغ", w: 210, align: "center" },
+    { key: "status", label: "الحالة", w: 210, align: "center" }
   ];
   const fixedW = cols.reduce((a, c) => a + c.w, 0);
   cols.find(c => c.key === "details").w = contentW - fixedW;
-  const padX = 14;
-  const headerH = 54;
+  const padX = 16;
+  const headerH = 58;
   const bodyFontPx = 24;
-  const lineH = bodyFontPx + 11;
-  const cellPadV = 11;
+  const lineH = bodyFontPx + 12;
+  const cellPadV = 12;
+  const bandH = 210;
 
   const singleClient = orders.every(o => o.clientId === orders[0].clientId) ? orders[0].client : null;
 
   const temp = document.createElement("canvas");
-  temp.width = 2;
-  temp.height = 2;
+  temp.width = 2; temp.height = 2;
   const tctx = temp.getContext("2d");
-  const setFont = (ctx, px, bold) => { ctx.font = (bold ? "700 " : "400 ") + px + "px " + FONT_FAMILY; };
+  const setFont = (ctx, px, bold) => { ctx.font = (bold ? "700 " : "400 ") + px + "px " + INVOICE_FONT; };
 
-  function cellLines(ctx, text, colW, kind) {
-    setFont(ctx, kind === "header" ? 24 : bodyFontPx, kind === "header");
+  function cellLines(ctx, text, colW) {
+    setFont(ctx, bodyFontPx, false);
     const maxW = colW - padX * 2;
     const words = String(text).split(" ");
     const lines = [];
@@ -2210,22 +2245,19 @@ function buildInvoiceCanvas(orders, title) {
     const cells = {
       num: [String(i + 1)],
       date: [fmtDate(o.date)],
-      service: (o.service || "—") ? cellLines(tctx, o.service || "—", cols.find(c => c.key === "service").w) : [""],
+      service: cellLines(tctx, o.service || "—", cols.find(c => c.key === "service").w),
       details: o.details ? cellLines(tctx, o.details, cols.find(c => c.key === "details").w) : ["—"],
       amount: [fmtMoney(o.amount)],
-      status: cellLines(tctx, st.text, cols.find(c => c.key === "status").w),
+      status: [st.text],
       paidOut: st.paidOut
     };
-    const maxLines = Math.max(1, ...Object.values(cells).filter(v => Array.isArray(v)).map(v => v.length));
+    const maxLines = Math.max(1, ...cols.map(c => cells[c.key].length));
     return { cells, h: maxLines * lineH + cellPadV * 2, maxLines };
   });
 
-  const sumH = 96;
+  const sumH = 108;
   const rowsH = rows.reduce((a, r) => a + r.h, 0);
-
-  // Pre-calculate total height dynamically
-  // Header: title(60) + date(35) + [client(40)] + spacing(30) + summary(sumH) + spacing(30) + sectionTitle(35) + tableHeader(headerH) + rowsH + footer(100)
-  let estH = 62 + 60 + 35 + (singleClient ? 40 : 0) + 30 + sumH + 30 + 35 + headerH + rowsH + 120;
+  const estH = bandH + 46 + sumH + 52 + 44 + headerH + rowsH + 150;
   const totalH = Math.max(estH, Math.floor(W * 297 / 210));
 
   const canvas = document.createElement("canvas");
@@ -2233,67 +2265,121 @@ function buildInvoiceCanvas(orders, title) {
   canvas.height = totalH;
   const ctx = canvas.getContext("2d");
   ctx.direction = "rtl";
+
+  // خلفية
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, totalH);
 
-  // top/bottom accents
-  ctx.fillStyle = "#f59e0b";
-  ctx.fillRect(0, 0, W, 12);
-  ctx.fillRect(0, totalH - 12, W, 12);
+  /* ===== ترويسة متدرّجة ===== */
+  const g = ctx.createLinearGradient(0, 0, W, bandH);
+  g.addColorStop(0, "#4f46e5");
+  g.addColorStop(0.55, "#7c3aed");
+  g.addColorStop(1, "#0891b2");
+  rrPath(ctx, 0, 0, W, bandH + 38, 34);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.fillRect(0, 0, W, 34);
+  // توهج دائري خفيف
+  const gl = ctx.createRadialGradient(W - 160, 40, 10, W - 160, 40, 260);
+  gl.addColorStop(0, "rgba(255,255,255,.18)");
+  gl.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gl;
+  ctx.fillRect(0, 0, W, bandH + 38);
 
-  // Title & Header (Dynamic running Y)
-  let y = 62;
+  // العنوان
   ctx.textAlign = "right";
   ctx.textBaseline = "top";
-  setFont(ctx, 44, true);
-  ctx.fillStyle = "#0f172a";
-  ctx.fillText(title + " — " + company, W - RM, y);
-  y += 60;
+  ctx.fillStyle = "#ffffff";
+  setFont(ctx, 46, true);
+  ctx.fillText(title + " — " + company, W - RM, 62);
+  ctx.globalAlpha = 0.9;
   setFont(ctx, 24, false);
-  ctx.fillStyle = "#64748b";
-  ctx.fillText("تاريخ الإصدار: " + new Date().toLocaleString("ar-EG-u-nu-latn", { dateStyle: "long", timeStyle: "short" }), W - RM, y);
-  y += 35;
+  ctx.fillText("دفتر التصوير · مستند مالي", W - RM, 118);
+  ctx.globalAlpha = 1;
+
+  // شريحة التاريخ (يسار)
+  const dateTxt = new Date().toLocaleDateString("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" });
+  setFont(ctx, 24, true);
+  const dw = ctx.measureText(dateTxt).width + 46;
+  rrPath(ctx, LM, 58, dw, 48, 24);
+  ctx.fillStyle = "rgba(255,255,255,.18)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.32)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(dateTxt, LM + dw / 2, 83);
+
+  let y = bandH + 46;
+
+  // شريحة العميل
   if (singleClient) {
-    setFont(ctx, 26, true);
-    ctx.fillStyle = "#1d4ed8";
-    ctx.fillText("العميل: " + singleClient, W - RM, y);
-    y += 40;
+    const c2 = clientById(orders[0].clientId);
+    const txt = "العميل: " + singleClient + (c2 && c2.phone ? "  ·  " + c2.phone : "");
+    setFont(ctx, 28, true);
+    const w2 = ctx.measureText(txt).width + 44;
+    rrPath(ctx, W - RM - w2, y - 6, w2, 52, 26);
+    ctx.fillStyle = "#eef2ff";
+    ctx.fill();
+    ctx.strokeStyle = "#c7d2fe";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = IND;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(txt, W - RM - w2 / 2, y + 20);
+    y += 62;
   }
 
-  y += 20; // spacing before summary
-
-  // Summary boxes
-  const boxW = (contentW - 30) / 3;
+  /* ===== بطاقات الملخّص ===== */
+  const boxW = (contentW - 32) / 3;
   const summary = [
-    { t: "اجمالي المطلوب", v: fmtMoney(oSum), c: "#1d4ed8", bg: "#dbeafe" },
-    { t: "المدفوع", v: fmtMoney(pSum), c: "#047857", bg: "#d1fae5" },
-    { t: "المتبقي", v: fmtMoney(due > 0 ? due : 0), c: due > 0 ? "#b45309" : "#047857", bg: due > 0 ? "#fef3c7" : "#d1fae5" }
+    { t: "إجمالي المطلوب", v: fmtMoney(oSum), c: IND, bar: "#4f46e5", bg: "#f5f7ff" },
+    { t: "المدفوع", v: fmtMoney(pSum), c: GRN, bar: "#059669", bg: "#f2fdf7" },
+    { t: "المتبقي", v: fmtMoney(due > 0 ? due : 0), c: due > 0 ? AMB : GRN, bar: due > 0 ? "#f59e0b" : "#059669", bg: due > 0 ? "#fffbeb" : "#f2fdf7" }
   ];
   summary.forEach((sm, i) => {
-    const bx = W - RM - boxW - i * (boxW + 15);
+    const bx = W - RM - boxW - i * (boxW + 16);
+    rrPath(ctx, bx, y, boxW, sumH, 20);
     ctx.fillStyle = sm.bg;
-    roundRect(ctx, bx, y, boxW, sumH, 12);
+    ctx.fill();
+    ctx.strokeStyle = "#e9eef6";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // شريط لوني جانبي
+    rrPath(ctx, bx + boxW - 8, y + 14, 6, sumH - 28, 3);
+    ctx.fillStyle = sm.bar;
+    ctx.fill();
     ctx.textAlign = "right";
-    setFont(ctx, 22, false);
-    ctx.fillStyle = "#475569";
-    ctx.fillText(sm.t, bx + boxW - 18, y + 18);
-    setFont(ctx, 30, true);
+    ctx.textBaseline = "top";
+    ctx.fillStyle = MUT;
+    setFont(ctx, 23, false);
+    ctx.fillText(sm.t, bx + boxW - 26, y + 20);
     ctx.fillStyle = sm.c;
-    ctx.fillText(sm.v, bx + boxW - 18, y + (sumH / 2) + 8);
+    setFont(ctx, 32, true);
+    ctx.fillText(sm.v, bx + boxW - 26, y + 52);
   });
 
-  y += sumH + 30;
+  y += sumH + 46;
 
-  // Section title
+  /* ===== عنوان القسم ===== */
   ctx.textAlign = "right";
-  setFont(ctx, 30, true);
-  ctx.fillStyle = "#0f172a";
-  ctx.fillText("الاوردرات (" + orders.length + ")", W - RM, y);
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = INK;
+  setFont(ctx, 32, true);
+  ctx.fillText("تفاصيل الأوردرات (" + orders.length + ")", W - RM, y + 14);
+  rrPath(ctx, W - RM - 8, y, 6, 30, 3);
+  ctx.fillStyle = "#4f46e5";
+  ctx.fill();
+  ctx.fillStyle = "#a5b4fc";
+  ctx.fillRect(W - RM - 210, y + 13, 194, 4);
 
-  y += 40;
-
-  // Table
+  y += 46;
   const tableY = y;
+
+  /* ===== الجدول ===== */
   let x = W - RM;
   const colRect = {};
   cols.forEach(c => {
@@ -2301,56 +2387,82 @@ function buildInvoiceCanvas(orders, title) {
     x -= c.w;
   });
 
-  function drawCellBg(columnKeyName, yy, hh, color) {
-    const r = colRect[columnKeyName];
-    ctx.fillStyle = color;
-    ctx.fillRect(r.x + 1, yy + 1, r.w - 2, Math.max(0, hh - 2));
-  }
-
-  // header
-  ctx.fillStyle = "#f59e0b";
-  ctx.fillRect(LM, tableY, contentW, headerH);
+  // ترويسة الجدول
+  const gh = ctx.createLinearGradient(LM, 0, LM + contentW, 0);
+  gh.addColorStop(0, IND);
+  gh.addColorStop(1, VIO);
+  rrPath(ctx, LM, tableY, contentW, headerH, 14);
+  ctx.fillStyle = gh;
+  ctx.fill();
+  ctx.fillRect(LM, tableY + headerH - 14, contentW, 14);
   cols.forEach(c => {
     const r = colRect[c.key];
-    ctx.fillStyle = "#111827";
+    ctx.fillStyle = "#ffffff";
     setFont(ctx, 25, true);
     ctx.textAlign = c.align === "center" ? "center" : "right";
     ctx.textBaseline = "middle";
     ctx.fillText(c.label, c.align === "center" ? r.x + r.w / 2 : r.x + r.w - padX, tableY + headerH / 2);
   });
-  ctx.strokeStyle = "#0f172a";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(LM, tableY, contentW, headerH);
 
-  // body rows
+  // الصفوف
   let ry = tableY + headerH;
   rows.forEach((r, idx) => {
-    const bg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
-    Object.keys(colRect).forEach(k => drawCellBg(k, ry, r.h, bg));
+    const bg = idx % 2 === 0 ? "#ffffff" : ALT;
+    ctx.fillStyle = bg;
+    ctx.fillRect(LM, ry, contentW, r.h);
     for (const k of cols.map(c => c.key)) {
       const rr = colRect[k];
       const align = cols.find(c => c.key === k).align;
       const lines = r.cells[k];
-      ctx.textBaseline = "top";
+      if (k === "status") {
+        const pw = 130;
+        pill(ctx, rr.x + (rr.w - pw) / 2, ry + (r.h - 38) / 2, pw, 38, lines[0],
+          r.cells.paidOut ? GRN : AMB,
+          r.cells.paidOut ? "#dcfce7" : "#fef3c7");
+        continue;
+      }
       lines.forEach((ln, li) => {
-        if (k === "status") ctx.fillStyle = r.cells.paidOut ? "#047857" : "#b45309";
-        else ctx.fillStyle = k === "details" ? "#475569" : "#0f172a";
-        setFont(ctx, bodyFontPx, k === "service");
+        ctx.textBaseline = "top";
+        if (k === "amount") ctx.fillStyle = IND;
+        else if (k === "details") ctx.fillStyle = MUT;
+        else if (k === "service") ctx.fillStyle = INK;
+        else ctx.fillStyle = "#334155";
+        setFont(ctx, bodyFontPx, k === "service" || k === "amount");
         if (align === "center") { ctx.textAlign = "center"; ctx.fillText(ln, rr.x + rr.w / 2, ry + cellPadV + li * lineH); }
         else { ctx.textAlign = "right"; ctx.fillText(ln, rr.x + rr.w - padX, ry + cellPadV + li * lineH); }
       });
     }
-    ctx.strokeStyle = "#e2e8f0";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(LM, ry, contentW, r.h);
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(LM, ry + r.h - 0.5);
+    ctx.lineTo(LM + contentW, ry + r.h - 0.5);
+    ctx.stroke();
     ry += r.h;
   });
 
-  // footer
+  // إطار خارجي ناعم
+  ctx.strokeStyle = "#e2e8f5";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(LM, tableY, contentW, headerH + rowsH);
+
+  /* ===== التذييل (يوضع بعد آخر صف حتى يظهر في صفحة الإخراج) ===== */
+  const fy = ry + 46;
+  const lg = ctx.createLinearGradient(LM, 0, LM + contentW, 0);
+  lg.addColorStop(0, "#4f46e5");
+  lg.addColorStop(0.5, "#7c3aed");
+  lg.addColorStop(1, "#0891b2");
+  rrPath(ctx, LM + contentW / 2 - 70, fy, 140, 5, 3);
+  ctx.fillStyle = lg;
+  ctx.fill();
   ctx.textAlign = "center";
-  setFont(ctx, 22, false);
+  ctx.textBaseline = "middle";
   ctx.fillStyle = "#94a3b8";
-  ctx.fillText("تم الإنشاء بواسطة 📸 دفتر التصوير", W / 2, totalH - 45);
+  setFont(ctx, 22, false);
+  ctx.fillText("تم الإنشاء بواسطة دفتر التصوير", W / 2, fy + 34);
+  ctx.fillStyle = "#cbd5e1";
+  setFont(ctx, 20, false);
+  ctx.fillText("هذا المستند مُولّد آلياً ولا يحتاج توقيع", W / 2, fy + 66);
 
   return {
     canvas,
@@ -2364,18 +2476,6 @@ function buildInvoiceCanvas(orders, title) {
     pagePxH: Math.floor(canvas.width * 297 / 210)
   };
 }
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-  ctx.fill();
-}
-
 function doExportPDF(orders, title) {
   const info = buildInvoiceCanvas(orders, title);
   const canvas = info.canvas;
@@ -2412,7 +2512,7 @@ function doExportPDF(orders, title) {
   }
   if (pages.length === 0) pages.push({ start: 0, end: 0, isFirst: true });
 
-  const FF = "-apple-system, 'SF Arabic', 'Segoe UI', Arial, sans-serif";
+  const FF = '"Thmanyah Sans", -apple-system, "SF Arabic", Arial, sans-serif';
   pages.forEach((p, idx) => {
     const tmp = document.createElement("canvas");
     tmp.width = pagePxW;
@@ -2465,14 +2565,16 @@ function exportOrdersPDF(orderIds, title) {
     return;
   }
   // تقسيم تلقائي لتفادي تجاوز حد لوحة الرسم في المتصفح
-  const CHUNK = 120;
+  const CHUNK = 100;
   const chunks = [];
   for (let i = 0; i < orders.length; i += CHUNK) chunks.push(orders.slice(i, i + CHUNK));
   chunks.forEach((c, idx) => {
     const t = chunks.length > 1 ? title + " (" + (idx + 1) + "/" + chunks.length + ")" : title;
     setTimeout(() => {
-      try { doExportPDF(c, t); }
-      catch (e) { toast("تعذر إنشاء PDF: " + (e.message || "خطأ غير معروف")); }
+      ensureInvoiceFont().then(() => {
+        try { doExportPDF(c, t); }
+        catch (e) { toast("تعذر إنشاء PDF: " + (e.message || "خطأ غير معروف")); }
+      });
     }, idx * 800);
   });
 }
