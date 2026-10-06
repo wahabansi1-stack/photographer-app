@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v36";
+const APP_VER = "v37";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -244,6 +244,83 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function avatarHue(name) {
+  let h = 0;
+  const s = String(name || "؟");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return h;
+}
+function avatarHtml(name) {
+  const letter = esc((String(name || "؟").trim().charAt(0) || "؟"));
+  return `<span class="av" style="--h:${avatarHue(name)}">${letter}</span>`;
+}
+function lastMonths(n) {
+  const out = [];
+  const d = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const x = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    out.push(x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0"));
+  }
+  return out;
+}
+function renderHeroChart() {
+  const el = $("#heroChart");
+  if (!el) return;
+  const days = [];
+  const base = new Date();
+  for (let i = 13; i >= 0; i--) {
+    const x = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
+    const key = x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+    const inc = state.payments.filter(p => p.date === key).reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const out = state.orders.filter(o => o.date === key).reduce((a, o) => a + (Number(o.amount) || 0), 0);
+    days.push({ key, inc, out });
+  }
+  const W = 320, H = 74, pad = 6;
+  const max = Math.max(1, ...days.map(d => Math.max(d.inc, d.out)));
+  const xAt = i => pad + (i * (W - pad * 2)) / (days.length - 1);
+  const yAt = v => H - pad - (v / max) * (H - pad * 2);
+  const path = key => days.map((d, i) => (i ? "L" : "M") + xAt(i).toFixed(1) + " " + yAt(d[key]).toFixed(1)).join(" ");
+  const incP = path("inc"), outP = path("out");
+  const area = incP + ` L ${xAt(days.length - 1).toFixed(1)} ${H - pad} L ${pad} ${H - pad} Z`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="hgIn" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#22d3ee" stop-opacity=".45"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${area}" fill="url(#hgIn)"/>
+      <path d="${outP}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="${incP}" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="hero-legend"><span class="lg lg-in">دفعات (14 يوم)</span><span class="lg lg-out">اوردرات</span></div>`;
+}
+function renderHero(o, p, due) {
+  const m = $("#monthFilter").value;
+  const hide = !!state.settings.hideAmounts;
+  const mval = hide ? "••••" : fmtMoney(o);
+  const set = (sel, v) => { const e = $(sel); if (e) e.textContent = v; };
+  set("#heroVal", mval);
+  set("#heroLbl", m === "all" || !m ? "💼 إجمالي كل الفترات" : "💼 إجمالي أوردرات " + monthLabel(m));
+  // مقارنة بالشهر السابق
+  const ms = lastMonths(2);
+  const curM = ms[1], prevM = ms[0];
+  const inM = (arr, k) => arr.filter(x => monthOf(x.date) === k).reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const curO = inM(state.orders, curM), prevO = inM(state.orders, prevM);
+  if (!hide && (m === "all" || !m || m === curM) && curO > 0) {
+    const diff = curO - prevO;
+    const pct = prevO ? Math.round((diff / prevO) * 100) : 0;
+    set("#heroSub", prevO
+      ? (diff >= 0 ? "▲ " + pct + "% عن الشهر الماضي" : "▼ " + Math.abs(pct) + "% عن الشهر الماضي")
+      : "أول شهر مسجّل — ابدأ بتسجيل أوردراتك");
+  } else {
+    set("#heroSub", state.orders.length + " اوردر · " + state.payments.length + " دفعة");
+  }
+  set("#heroPaid", hide ? "••••" : fmtMoney(p));
+  set("#heroDue", hide ? "••••" : fmtMoney(due > 0 ? due : 0));
+  const goal = Number(state.settings.targetGoal) || 0;
+  set("#heroGoal", goal ? (hide ? "••••" : fmtMoney(goal)) : "غير محدد");
+  renderHeroChart();
+}
 function renderHome() {
   const o = totals("orders");
   const p = totals("payments");
@@ -251,14 +328,17 @@ function renderHome() {
   const m = $("#monthFilter").value;
   const pb = $("#privacyBtn");
   if (pb) pb.textContent = state.settings.hideAmounts ? "🙈" : "👁️";
+  const cnt = filtered("orders").length;
+  const avg = cnt ? o / cnt : 0;
   let html = `
-    <div class="stat total orders"><div class="lbl">📦 اجمالي الاوردرات</div><div class="val">${privMoney(o)}</div></div>
-    <div class="stat ok"><div class="lbl">💰 المدفوعات</div><div class="val">${privMoney(p)}</div></div>
-    <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val">${privMoney(due > 0 ? due : 0)}</div></div>`;
+    <div class="stat orders"><div class="lbl">📦 عدد الأوردرات</div><div class="val">${cnt}</div></div>
+    <div class="stat ok"><div class="lbl">💵 متوسط الفاتورة</div><div class="val" style="font-size:17px;">${privMoney(avg)}</div></div>
+    <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val" style="font-size:17px;">${privMoney(due > 0 ? due : 0)}</div></div>`;
   if (due < 0) {
     html += `<div class="stat note">ملاحظة: مدفوعات أكثر من الاوردرات بمقدار ${privMoney(Math.abs(due))}</div>`;
   }
   $("#homeStats").innerHTML = html;
+  renderHero(o, p, due);
 
   const mm = m;
   const pickArr = arr => (mm === "all" || !mm ? arr : arr.filter(x => inMonth(x.date, mm)));
@@ -270,11 +350,17 @@ function renderHome() {
   $("#recentList").innerHTML = items.length ? items.slice(0, 10).map(i => `
     <div class="item ${i.cls}">
       <div class="top">
-        <div>
-          <div class="name">${i.t} ${esc(i.client)}</div>
-          <div class="meta">${fmtDate(i.d)}${i.extra ? " · " + esc(i.extra) : ""}</div>
+        <div class="row-av">
+          ${avatarHtml(i.client)}
+          <div>
+            <div class="name">${esc(i.client)}</div>
+            <div class="meta">${fmtDate(i.d)}${i.extra ? " · " + esc(i.extra) : ""}</div>
+          </div>
         </div>
-        <div class="amt">${state.settings.hideAmounts ? "••••" : ((i.amount < 0 ? "-" : "") + fmtMoney(Math.abs(i.amount)))}</div>
+        <div class="right">
+          <div class="amt">${state.settings.hideAmounts ? "••••" : ((i.cls === "pay" ? "" : "") + fmtMoney(Math.abs(i.amount)))}</div>
+          <span class="dir ${i.cls === "pay" ? "in" : "out"}">${i.cls === "pay" ? "↓ وارد" : "↑ طلب"}</span>
+        </div>
       </div>
     </div>`).join("")
     : `<div class="empty">لا توجد عمليات${mm === "all" ? "" : " لهذا الشهر"}.</div>`;

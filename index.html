@@ -20,6 +20,30 @@
   </header>
 
   <section class="screen active" id="screen-home">
+    <div class="hero-card">
+      <div class="hero-top">
+        <div class="hero-main">
+          <div class="hero-lbl" id="heroLbl">💼 إجمالي الأوردرات</div>
+          <div class="hero-val" id="heroVal">0</div>
+          <div class="hero-sub" id="heroSub">—</div>
+        </div>
+        <div class="hero-badge">📊</div>
+      </div>
+      <div class="hero-chart" id="heroChart"></div>
+      <div class="hero-stats">
+        <div class="hs hs-ok"><span>المدفوع</span><b id="heroPaid">0</b></div>
+        <div class="hs hs-due"><span>المتبقي</span><b id="heroDue">0</b></div>
+        <div class="hs hs-goal"><span>الهدف</span><b id="heroGoal">—</b></div>
+      </div>
+    </div>
+
+    <div class="quick-row">
+      <button class="qa qa-orders" onclick="showOrderModal()"><i>📦</i>اوردر</button>
+      <button class="qa qa-pay" onclick="showPaymentModal()"><i>💰</i>دفعة</button>
+      <button class="qa qa-client" onclick="showClientModal()"><i>👥</i>عميل</button>
+      <button class="qa qa-book" onclick="showBookingModal()"><i>📅</i>حجز</button>
+    </div>
+
     <div class="field" style="margin-bottom:12px;">
       <input type="search" id="globalSearch" class="search-box" placeholder="🔍 بحث فوري في كل شيء: عملاء، اوردرات، مدفوعات، حجوزات، مستحقات..." oninput="onSearchInput()" autocomplete="off">
     </div>
