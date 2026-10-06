@@ -108,7 +108,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v34";
+const APP_VER = "v35";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -571,7 +571,7 @@ function renderDashboard() {
   }).join("");
 }
 
-function saveSettings() {
+function saveSettings(silent) {
   const sa = $("#setAccountant"); if (sa) state.settings.accountant = sa.value.replace(/\D/g, "");
   const sc = $("#setCompany"); if (sc) state.settings.company = sc.value.trim();
   const scr = $("#setCurrency");
@@ -582,7 +582,7 @@ function saveSettings() {
   }
   const sg = $("#setGoal"); if (sg) state.settings.targetGoal = sg.value.replace(/\D/g, "");
   save();
-  toast("تم حفظ الإعدادات");
+  if (!silent) toast("تم حفظ الإعدادات");
   refresh();
 }
 
@@ -899,9 +899,14 @@ if (curSelEl) {
 }
 
 /* ---------- Modals (sheet stack: back returns to previous) ---------- */
+let sheetHist = 0;
 function openSheet(html, tag) {
+  const wasEmpty = sheetStack.length === 0;
   sheetStack.push({ html, tag: tag || null });
   renderSheetTop();
+  if (wasEmpty) {
+    try { history.pushState({ dlSheet: 1 }, ""); sheetHist++; } catch (_) {}
+  }
 }
 function renderSheetTop() {
   const top = sheetStack[sheetStack.length - 1];
@@ -913,10 +918,25 @@ function renderSheetTop() {
     ${top.html}`;
   $("#overlay").classList.add("show");
 }
-function closeSheet() {
+function closeSheet(skipHist) {
   if (sheetStack.length) sheetStack.pop();
+  if (!skipHist && !sheetStack.length && sheetHist > 0) {
+    sheetHist--;
+    try { history.back(); } catch (_) {}
+  }
   renderSheetTop();
 }
+/* إغلاق النافذة: لمس الخلفية، زر Escape، وزر الرجوع في أندرويد */
+$("#overlay").addEventListener("click", e => {
+  if (e.target.id === "overlay") closeSheet();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && sheetStack.length) closeSheet();
+});
+window.addEventListener("popstate", () => {
+  if (sheetHist > 0) sheetHist--;
+  if (sheetStack.length) { sheetStack.length = 0; renderSheetTop(); }
+});
 function buildSheetByTag(tag) {
   if (!tag) return null;
   if (tag.kind === "clientDetail") {
@@ -1071,7 +1091,7 @@ function clientDetailHtml(id) {
           ${lrem > 0 ? `<div style="font-size:11px;color:#b45309;font-weight:700;">متبقي ${fmtMoney(lrem)}</div>` : `<div style="font-size:11px;color:#047857;font-weight:700;">مسدد ✓</div>`}
         </div>
       </div>
-      <div class="meta" style="margin-top:6px;">مسدد: ${fmtMoney(lpaid)} من ${fmtMoney(l.amount)}</div>
+      <div class="meta" style="margin-top:6px;">مسدد: ${fmtMoney(lpaid)} من ${fmtMoney(l.amount)}${l.lastPaid ? ` · آخر تسديد: ${fmtDate(l.lastPaid)}` : ""}</div>
       <div class="actions-inline">
         ${lrem > 0 ? `<button class="btn btn-dark btn-slim" onclick='showLedgerPayModal("${l.id}")'>💳 تسديد</button>` : ""}
         <button class="btn btn-dark btn-slim" onclick='showLedgerModal("${id}","${l.id}")'>✏️ تعديل</button>
@@ -1180,6 +1200,8 @@ function saveLedgerPayment(entryId) {
   const rem = Number(e.amount) - (Number(e.paid) || 0);
   if (amount > rem) return toast("المبلغ أكبر من المتبقي (" + fmtMoney(rem) + ")");
   e.paid = (Number(e.paid) || 0) + amount;
+  const d = $("#lpDate") ? $("#lpDate").value : "";
+  if (d) e.lastPaid = d;
   save();
   closeSheet();
   refresh();
@@ -1757,7 +1779,7 @@ function clientPhone(clientId) {
 }
 function openWhatsApp(num, text, label) {
   toast(label ? "الذهاب لواتساب: " + label : "يتم فتح واتساب...");
-  saveSettings();
+  saveSettings(true);
   const url = "https://wa.me/" + num + "?text=" + encodeURIComponent(text);
   setTimeout(() => window.open(url, "_blank"), 250);
 }
@@ -2163,11 +2185,17 @@ function exportOrdersPDF(orderIds, title) {
     setTimeout(() => exportOrdersPDF(orderIds, title), 400);
     return;
   }
-  try {
-    doExportPDF(orders, title);
-  } catch (e) {
-    toast("تعذر إنشاء PDF: " + e.message);
-  }
+  // تقسيم تلقائي لتفادي تجاوز حد لوحة الرسم في المتصفح
+  const CHUNK = 120;
+  const chunks = [];
+  for (let i = 0; i < orders.length; i += CHUNK) chunks.push(orders.slice(i, i + CHUNK));
+  chunks.forEach((c, idx) => {
+    const t = chunks.length > 1 ? title + " (" + (idx + 1) + "/" + chunks.length + ")" : title;
+    setTimeout(() => {
+      try { doExportPDF(c, t); }
+      catch (e) { toast("تعذر إنشاء PDF: " + (e.message || "خطأ غير معروف")); }
+    }, idx * 800);
+  });
 }
 
 function exportSelectedPDF() {
