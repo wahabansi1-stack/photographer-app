@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v38";
+const APP_VER = "v39";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -579,6 +579,7 @@ function fillSettings() {
   const rt = $("#dailyRemindToggle"); if (rt) rt.checked = !!s.dailyRemind;
   renderServices();
   renderBinCount();
+  fillNotifyBox();
   const tip = $("#lastBackupTip");
   if (tip) {
     if (s.lastBackup) {
@@ -1095,6 +1096,7 @@ applyTheme();
 maybeBackupReminder();
 maybeAutoBackup();
 maybeDailyRemind();
+setTimeout(() => checkBookingAlerts(false), 2500);
 maybeLock();
 const curSelEl = $("#setCurrency");
 if (curSelEl) {
@@ -1722,7 +1724,81 @@ function delPayment(id) {
   toast("تم الحذف");
 }
 /* ---------- Bookings (حجوزات التصوير) ---------- */
-let remindedBookings = new Set();
+/* ---------- تنبيهات الحجوزات (إشعارات حقيقية) ---------- */
+function notifPerm() {
+  return typeof Notification === "undefined" ? "unsupported" : Notification.permission;
+}
+function notifyLabel() {
+  const p = notifPerm();
+  return p === "granted" ? "مفعّلة" : p === "denied" ? "مرفوضة من المتصفح" : p === "unsupported" ? "غير مدعومة" : "غير مفعّلة";
+}
+function toggleNotify() {
+  const el = $("#notifyToggle");
+  if (!el) return;
+  if (typeof Notification === "undefined") { el.checked = false; return toast("متصفحك ما يدعم الإشعارات"); }
+  if (Notification.permission === "granted") {
+    state.settings.notify = el.checked;
+    save();
+    fillNotifyBox();
+    toast(el.checked ? "تم تفعيل تنبيهات الحجوزات" : "تم إيقاف تنبيهات الحجوزات");
+    if (el.checked) checkBookingAlerts(true);
+    return;
+  }
+  if (el.checked) {
+    Notification.requestPermission().then(p => {
+      state.settings.notify = p === "granted";
+      el.checked = p === "granted";
+      save();
+      fillNotifyBox();
+      toast(p === "granted" ? "تم تفعيل تنبيهات الحجوزات" : "لم يُسمح بالإشعارات — فعّلها من إعدادات المتصفح");
+      if (p === "granted") checkBookingAlerts(true);
+    });
+  } else {
+    state.settings.notify = false;
+    save();
+  }
+}
+function fireNotify(title, body, tag) {
+  if (!state.settings.notify || notifPerm() !== "granted") return false;
+  try {
+    const n = new Notification(title, { body: body, tag: tag || "", icon: "icons/icon-192.png", badge: "icons/icon-192.png", dir: "rtl", lang: "ar" });
+    n.onclick = () => { try { window.focus(); go("bookings"); } catch (_) {} n.close(); };
+    return true;
+  } catch (e) { return false; }
+}
+function fillNotifyBox() {
+  const el = $("#notifyToggle");
+  if (el) el.checked = !!state.settings.notify && notifPerm() === "granted";
+  const tip = $("#notifyTip");
+  if (!tip) return;
+  const p = notifPerm();
+  let msg = "الحالة: " + notifyLabel();
+  if (p === "denied") msg += " — افتح إعدادات الموقع في المتصفح واسمح بالإشعارات.";
+  else if (p === "unsupported") msg += " — استخدم كروم، أو سفاري بعد تثبيت التطبيق على الشاشة الرئيسية.";
+  else if (p === "granted") msg += " — يصلك إشعار عند اقتراب موعد الحجز (يفتح الحجوزات عند الضغط).";
+  else msg += " — فعّل المفتاح واسمح بالإذن من المتصفح.";
+  tip.textContent = msg;
+}
+function checkBookingAlerts(force) {
+  const due = (state.bookings || []).filter(b => !b.done && b.date && bookingDue(b));
+  if (!due.length) return 0;
+  const day = todayStr();
+  const key = "n" + day + "|";
+  const seen = new Set((state.settings.notifiedBookings || []).filter(k => k.indexOf(key) === 0).map(k => k.slice(key.length)));
+  const fresh = force ? due : due.filter(b => !seen.has(b.id));
+  if (!fresh.length) return 0;
+  state.settings.notifiedBookings = [...new Set((state.settings.notifiedBookings || []).concat(fresh.map(b => key + b.id)))].slice(-80);
+  save();
+  const n = fresh.length;
+  const lines = fresh.slice(0, 3).map(b => "• " + b.title + " — " + fmtDate(b.date) + (b.time ? " · " + b.time : "") + (b.client ? " (" + b.client + ")" : ""));
+  const body = (n === 1 ? lines[0] : n + " حجوزات:\n" + lines.join("\n")) + (n > 3 ? "\n…" : "");
+  const ok = fireNotify("📅 تذكير بحجز", body, "bookings-" + day);
+  if (!ok) toast("⏰ " + (n === 1 ? fresh[0].title + " · " + daysLabel(daysUntil(fresh[0].date)) : n + " حجوزات تحتاج مراجعتك"));
+  return n;
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") setTimeout(() => checkBookingAlerts(false), 900);
+});
 function daysUntil(dstr) {
   const t = new Date(todayStr() + "T12:00:00");
   const x = new Date(((dstr || todayStr())) + "T12:00:00");
@@ -1788,11 +1864,6 @@ function renderBookings() {
     </div>`;
   }).join("") : `<div class="empty">لا توجد حجوزات. اضغط «+ حجز» لإضافة حجز مستقبلي مع تنبيه.</div>`;
   $("#bookingsList").innerHTML = html;
-  const dueNow = list.filter(b => bookingDue(b) && !remindedBookings.has(b.id));
-  if (dueNow.length) {
-    dueNow.forEach(b => remindedBookings.add(b.id));
-    toast(`⏰ تذكير: ${dueNow.length} حجوزات قريبة/فائتة — راجع تبويب الحجوزات`);
-  }
 }
 function showBookingModal(id) {
   const b = id ? (state.bookings || []).find(x => x.id === id) : null;
@@ -1843,7 +1914,8 @@ function saveBooking(id) {
   closeSheet();
   refresh();
   go("bookings");
-  toast("تم حفظ الحجز 📅");
+  toast("تم حفظ الحجز");
+  setTimeout(() => checkBookingAlerts(false), 500);
 }
 function toggleBookingDone(id) {
   const b = (state.bookings || []).find(x => x.id === id);
@@ -2781,6 +2853,7 @@ function updateDiag() {
     ["اللقطات اليومية", snaps.length + " (" + lastSnap + ")"],
     ["آخر نسخة احتياطية", state.settings.lastBackup ? fmtDate(new Date(state.settings.lastBackup).toISOString().slice(0, 10)) : "لا يوجد"],
     ["التطبيق مثبت", isStandalone() ? "نعم" : "لا"],
+    ["إشعارات الحجوزات", notifyLabel()],
     ["حجم البيانات", kb((JSON.stringify(state) || "").length)],
     ["أخطاء مسجلة", String(errorLog.length)]
   ];
