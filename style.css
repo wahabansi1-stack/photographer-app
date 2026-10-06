@@ -997,3 +997,29 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent) !importa
 #homeStats .stat { padding: 12px 11px; border-radius: 18px; }
 #homeStats .stat .lbl { font-size: 10.5px; }
 #homeStats .stat .val { font-size: 18px; margin-top: 4px; }
+
+/* ============ خط ثمانية + الأيقونات الحديثة ============ */
+body, input, select, textarea, button { font-family: "Thmanyah Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header h1, .hero-val, .stat .val, .item .amt, .sheet h2, .nav-title, .qa { font-family: "Thmanyah Sans", -apple-system, sans-serif; font-weight: 900; }
+.h1, .hero-val, .goal-collected-val, .dues-hero-val { letter-spacing: -.4px; }
+.ico { width: 1.15em; height: 1.15em; vertical-align: -.18em; flex: none; }
+.ico.big { width: 42px; height: 42px; opacity: .35; margin-bottom: 10px; stroke-width: 1.2; }
+.stat .lbl .ico { width: 14px; height: 14px; opacity: .8; }
+.hero-lbl .ico { width: 14px; height: 14px; opacity: .85; }
+.item .name .ico { width: 15px; height: 15px; opacity: .7; margin-inline-end: 4px; }
+.logo-ico { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; margin-inline-end: 6px; vertical-align: -7px; background: var(--grad); box-shadow: 0 8px 20px rgba(79, 70, 229, .4); }
+.logo-ico .ico { width: 17px; height: 17px; color: #fff; stroke-width: 1.9; }
+header h1 .logo-ico + * , header h1 { -webkit-background-clip: initial; background: none; color: var(--text); }
+nav button .ic { display: grid; place-items: center; }
+nav button .ic .ico { width: 21px; height: 21px; stroke-width: 1.8; }
+nav button.active .ic .ico { stroke-width: 2; }
+.qa i { color: #fff; }
+.qa i .ico { width: 21px; height: 21px; stroke-width: 1.9; }
+.hero-badge { color: #fff; }
+.hero-badge .ico { width: 20px; height: 20px; stroke-width: 1.8; }
+.btn .ico, .btn-slim .ico { width: 15px; height: 15px; margin-inline-end: 5px; }
+.item .rm .ico { width: 13px; height: 13px; }
+.sheet-close .ico { width: 13px; height: 13px; margin-inline-end: 4px; }
+.hero-lbl em { font-style: normal; }
+.empty::before { content: none !important; }
+.empty { display: grid; justify-items: center; gap: 2px; }

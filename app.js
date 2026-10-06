@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v37";
+const APP_VER = "v38";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -244,6 +244,44 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ---------- أيقونات SVG حديثة ---------- */
+const ICONS = {
+  home: '<path d="M3 10.6 12 3l9 7.6"/><path d="M5.5 9.4V20h13V9.4"/><path d="M9.7 20v-5.4h4.6V20"/>',
+  users: '<path d="M16 20v-1.6a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="9" cy="7" r="3.4"/><path d="M22 20v-1.6a4 4 0 0 0-3-3.87"/><path d="M16.5 3.7a4 4 0 0 1 0 7.5"/>',
+  box: '<path d="M20.5 7.6 12 3.2 3.5 7.6v8.8L12 20.8l8.5-4.4z"/><path d="M3.6 7.7 12 12l8.4-4.3"/><path d="M12 20.8V12"/>',
+  wallet: '<path d="M3 8.4A2.4 2.4 0 0 1 5.4 6h13.2A2.4 2.4 0 0 1 21 8.4v8.2a2.4 2.4 0 0 1-2.4 2.4H5.4A2.4 2.4 0 0 1 3 16.6z"/><path d="M3 9.6V7.4a2 2 0 0 1 1.6-2l10.6-1.7"/><circle cx="16.8" cy="12.6" r="1.5"/>',
+  calendar: '<rect x="3.2" y="5" width="17.6" height="16" rx="3.4"/><path d="M8 3v4M16 3v4M3.2 10h17.6"/>',
+  hand: '<path d="M11 12.5 8.6 10a1.8 1.8 0 0 0-2.6 2.5l3.4 4a6 6 0 0 0 4.6 2.1h2.2a4.4 4.4 0 0 0 4.4-4.4V12"/><path d="M15 6.2a1.8 1.8 0 1 1 2.6 2.6L15 11.2"/>',
+  chart: '<path d="M4 20V4"/><path d="M4 20h16"/><path d="M7.5 16.5V11M12 16.5V6.5M16.5 16.5v-4"/>',
+  camera: '<path d="M4 8.6h3.2l1.6-2.4h6.4l1.6 2.4H20a1.6 1.6 0 0 1 1.6 1.6v8a1.6 1.6 0 0 1-1.6 1.6H4a1.6 1.6 0 0 1-1.6-1.6v-8A1.6 1.6 0 0 1 4 8.6z"/><circle cx="12" cy="13.8" r="3.4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.6 20.4a7.6 7.6 0 0 1 14.8 0"/>',
+  search: '<circle cx="11" cy="11" r="6.6"/><path d="m16 16 4.6 4.6"/>',
+  bell: '<path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 4 1.5 5.6 1.5 5.6H5S6.5 14 6.5 10z"/><path d="M10.2 19a2 2 0 0 0 3.6 0"/>',
+  lock: '<rect x="4.6" y="10.4" width="14.8" height="10.2" rx="3"/><path d="M8.2 10.4V7.8a3.8 3.8 0 0 1 7.6 0v2.6"/>',
+  trash: '<path d="M4.6 6.6h14.8"/><path d="M9 6.6V4.8A1.4 1.4 0 0 1 10.4 3.4h3.2A1.4 1.4 0 0 1 15 4.8v1.8"/><path d="M6.6 6.6 7.6 19a1.6 1.6 0 0 0 1.6 1.5h5.6a1.6 1.6 0 0 0 1.6-1.5l1-12.4"/>',
+  edit: '<path d="M12.5 5.5H5.4A2.4 2.4 0 0 0 3 7.9v10.7A2.4 2.4 0 0 0 5.4 21h10.7a2.4 2.4 0 0 0 2.4-2.4V11.5"/><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12.6 14.4l-3.9.9.9-3.9z"/>',
+  download: '<path d="M12 3.6v11"/><path d="m7.6 10.6 4.4 4.4 4.4-4.4"/><path d="M4.4 17.4v1.6a1.6 1.6 0 0 0 1.6 1.6h12a1.6 1.6 0 0 0 1.6-1.6v-1.6"/>',
+  check: '<path d="m4.6 12.6 4.8 4.8L19.4 7.2"/>',
+  eye: '<path d="M2.6 12S6 5.6 12 5.6 21.4 12 21.4 12 18 18.4 12 18.4 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M9.6 6.2A8.9 8.9 0 0 1 12 5.8c6 0 9.4 6.2 9.4 6.2a15.7 15.7 0 0 1-2.6 3.4"/><path d="M6.4 7.9A15.8 15.8 0 0 0 2.6 12S6 18.2 12 18.2a8.8 8.8 0 0 0 3.4-.7"/><path d="M9.9 9.9a2.9 2.9 0 0 0 4.1 4.1"/><path d="M3.4 3.4 20.6 20.6"/>',
+  share: '<path d="M4 12v7.4a1.6 1.6 0 0 0 1.6 1.6h12.8a1.6 1.6 0 0 0 1.6-1.6V12"/><path d="m8.4 7.2 3.6-3.6 3.6 3.6"/><path d="M12 3.6v12.2"/>',
+  arrowUp: '<path d="M12 19V5"/><path d="m6 11 6-6 6 6"/>',
+  arrowDown: '<path d="M12 5v14"/><path d="m6 13 6 6 6-6"/>',
+  shield: '<path d="M12 3 5 5.8v5.4c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V5.8z"/><path d="m9.2 11.8 2 2 3.6-3.8"/>',
+  target: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1"/>',
+  layers: '<path d="M12 3.2 3.4 7.4 12 11.6l8.6-4.2z"/><path d="m3.4 12 8.6 4.2L20.6 12"/><path d="m3.4 16.6 8.6 4.2 8.6-4.2"/>',
+  file: '<path d="M14 3.4H7.4A1.8 1.8 0 0 0 5.6 5.2v13.6a1.8 1.8 0 0 0 1.8 1.8h9.2a1.8 1.8 0 0 0 1.8-1.8V8.4z"/><path d="M13.8 3.6v4.8h4.6"/><path d="M9 13h6M9 16.4h4"/>',
+  trashBin: '<path d="M4.6 7h14.8"/><path d="M9.4 7V5.2A1.4 1.4 0 0 1 10.8 3.8h2.4a1.4 1.4 0 0 1 1.4 1.4V7"/><path d="M6.4 7h11.2l-.9 12.2a1.6 1.6 0 0 1-1.6 1.4H8.9a1.6 1.6 0 0 1-1.6-1.4z"/>',
+  refresh: '<path d="M20 11.4a8 8 0 1 0-.7 4.6"/><path d="M20.4 4.6v6.8h-6.8"/>',
+  clock: '<circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.4 2"/>',
+  send: '<path d="M20.6 3.4 10.4 13.6"/><path d="M20.6 3.4 14.2 20.6l-3.8-7-7-3.8z"/>',
+  sparkle: '<path d="M12 3.4 13.9 9 19.6 10.9 13.9 12.8 12 18.4 10.1 12.8 4.4 10.9 10.1 9z"/>',
+  money: '<rect x="2.6" y="6" width="18.8" height="12" rx="2.6"/><circle cx="12" cy="12" r="2.8"/><path d="M6.4 9.6v4.8M17.6 9.6v4.8"/>'
+};
+function ico(name, cls) {
+  return `<svg class="ico ${cls || ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+}
 function avatarHue(name) {
   let h = 0;
   const s = String(name || "؟");
@@ -331,9 +369,9 @@ function renderHome() {
   const cnt = filtered("orders").length;
   const avg = cnt ? o / cnt : 0;
   let html = `
-    <div class="stat orders"><div class="lbl">📦 عدد الأوردرات</div><div class="val">${cnt}</div></div>
-    <div class="stat ok"><div class="lbl">💵 متوسط الفاتورة</div><div class="val" style="font-size:17px;">${privMoney(avg)}</div></div>
-    <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val" style="font-size:17px;">${privMoney(due > 0 ? due : 0)}</div></div>`;
+    <div class="stat orders"><div class="lbl">${ico("box")} عدد الأوردرات</div><div class="val">${cnt}</div></div>
+    <div class="stat ok"><div class="lbl">${ico("money")} متوسط الفاتورة</div><div class="val" style="font-size:17px;">${privMoney(avg)}</div></div>
+    <div class="stat due"><div class="lbl">${ico("target")} المتبقي للتحصيل</div><div class="val" style="font-size:17px;">${privMoney(due > 0 ? due : 0)}</div></div>`;
   if (due < 0) {
     html += `<div class="stat note">ملاحظة: مدفوعات أكثر من الاوردرات بمقدار ${privMoney(Math.abs(due))}</div>`;
   }
@@ -444,7 +482,7 @@ function renderOrders() {
     <div class="item pressable ${selectMode ? "selectable" : "tappable"} ${isSel ? "selecting" : ""}" onpointerdown='pressStart(event,"order","${o.id}")' onpointerup='pressEnd(event)' onpointercancel='pressEnd(event)' onpointerleave='pressCancel()' onclick='pressTap(event,"order","${o.id}")' oncontextmenu='return false'>
       <div class="top">
         <div>
-          <div class="name">📦 ${esc(o.client)}</div>
+          <div class="name">${ico("box")} ${esc(o.client)}</div>
           <div class="meta">
             <span>${fmtDate(o.date)}</span>
             ${o.service ? `<span class="badge">${esc(o.service)}</span>` : ""}
@@ -463,7 +501,7 @@ function renderOrders() {
           : `<span style="color:var(--ok)">✓ مدفوع كامل</span>`}
       </div>
     </div>`;
-  }).join("") : `<div class="empty">لا توجد اوردرات.</div>`;
+  }).join("") : `<div class="empty">${ico("box", "big")}<br>لا توجد اوردرات.</div>`;
 }
 
 function renderPayments() {
@@ -474,7 +512,7 @@ function renderPayments() {
     <div class="item pay">
       <div class="top">
         <div>
-          <div class="name">💰 ${esc(p.client)}</div>
+          <div class="name">${ico("wallet")} ${esc(p.client)}</div>
           <div class="meta">
             <span>${fmtDate(p.date)}</span>
             ${p.method ? `<span class="badge">${esc(p.method)}</span>` : ""}
@@ -489,7 +527,7 @@ function renderPayments() {
         <button class="rm" onclick='delPayment("${p.id}")'>حذف</button>
       </div>
     </div>`;
-  }).join("") : `<div class="empty">لا توجد مدفوعات مسجلة.</div>`;
+  }).join("") : `<div class="empty">${ico("wallet", "big")}<br>لا توجد مدفوعات مسجلة.</div>`;
 }
 
 function renderClients() {
@@ -502,10 +540,10 @@ function renderClients() {
     <div class="item tappable pressable" onpointerdown='pressStart(event,"client","${c.id}")' onpointerup='pressEnd(event)' onpointercancel='pressEnd(event)' onpointerleave='pressCancel()' onclick='pressTap(event,"client","${c.id}")' oncontextmenu='return false'>
       <div class="top">
         <div>
-          <div class="name">👥 ${esc(c.name)}</div>
+          <div class="name">${ico("users")} ${esc(c.name)}</div>
           <div class="meta">
             <span>${t.count} اوردر</span>
-            ${c.phone ? `<span class="badge">📱 ${esc(c.phone)}</span>` : ""}
+            ${c.phone ? `<span class="badge">${ico("file")} ${esc(c.phone)}</span>` : ""}
           </div>
         </div>
         <div style="text-align:left;">
@@ -535,8 +573,7 @@ function fillSettings() {
   }
   const tg = $("#themeSeg");
   if (tg) {
-    const th = s.theme === "light" ? "light" : "dark";
-    $$("#themeSeg button").forEach(b => b.classList.toggle("active", b.dataset.theme === th));
+    $$("#themeSeg button").forEach(b => b.classList.toggle("active", b.dataset.theme === "dark"));
   }
   const pt = $("#pinOnToggle"); if (pt) pt.checked = !!s.pinOn;
   const rt = $("#dailyRemindToggle"); if (rt) rt.checked = !!s.dailyRemind;
@@ -710,16 +747,23 @@ function saveSettings(silent) {
 }
 
 /* ---------- Theme (dark / light) ---------- */
+function hydrateIcons(root) {
+  const scope = root || document;
+  (scope.querySelectorAll ? scope.querySelectorAll("[data-ico]") : []).forEach(el => {
+    if (el.dataset.icoDone) return;
+    el.innerHTML = ico(el.dataset.ico);
+    el.dataset.icoDone = "1";
+  });
+}
 function applyTheme() {
-  const th = state.settings.theme === "light" ? "light" : "dark";
-  document.documentElement.dataset.theme = th;
+  document.documentElement.dataset.theme = "dark";
 }
 function setTheme(th) {
-  state.settings.theme = th === "light" ? "light" : "dark";
+  state.settings.theme = "dark";
   save();
   applyTheme();
-  $$("#themeSeg button").forEach(b => b.classList.toggle("active", b.dataset.theme === th));
-  toast(th === "light" ? "☀️ الوضع الفاتح" : "🌙 الوضع الداكن");
+  $$("#themeSeg button").forEach(b => b.classList.toggle("active", b.dataset.theme === "dark"));
+  toast("🌙 الوضع الليلي");
 }
 
 /* ---------- Quick services (الخدمات السريعة) ---------- */
@@ -900,17 +944,17 @@ function showDailySummary() {
       return `<div class="mini-item"><span>👥 ${esc(o.client)} · ${esc(o.service || "اوردر")}</span><b>${fmtMoney(rem)}</b></div>`;
     }).join("")}${pending.length > 3 ? `<div class="mini-more">+${pending.length - 3} أخرى…</div>` : ""}</div>`;
   }
-  openSheet(`<h2>☀️ ملخص يومك</h2>
+  openSheet(`<h2>${ico("sparkle")} ملخص يومك</h2>
     <p class="tip">${fmtDate(t)} — لنبدأ يوم جديد بتركيز!</p>
     <div class="daily-wrap">
-      <div class="daily-row"><span>📦 اوردرات اليوم</span><b>${todayOrders.length} · ${fmtMoney(oSum)}</b></div>
-      <div class="daily-row"><span>📅 حجوزات اليوم</span><b>${todayBookings.length}</b></div>
-      <div class="daily-row"><span>⏰ حجوزات فائتة/مستحقة</span><b>${lateBookings.length}</b></div>
-      <div class="daily-row"><span>🧾 إجمالي المتأخرات</span><b>${pending.length} · ${fmtMoney(pendSum)}</b></div>
+      <div class="daily-row"><span>${ico("box")} اوردرات اليوم</span><b>${todayOrders.length} · ${fmtMoney(oSum)}</b></div>
+      <div class="daily-row"><span>${ico("calendar")} حجوزات اليوم</span><b>${todayBookings.length}</b></div>
+      <div class="daily-row"><span>${ico("clock")} حجوزات فائتة/مستحقة</span><b>${lateBookings.length}</b></div>
+      <div class="daily-row"><span>${ico("file")} إجمالي المتأخرات</span><b>${pending.length} · ${fmtMoney(pendSum)}</b></div>
     </div>
     ${pendList}
     <div class="actions" style="margin-top:14px;">
-      <button class="btn btn-primary" onclick="closeSheet();go('orders')">📦 عرض الاوردرات</button>
+      <button class="btn btn-primary" onclick="closeSheet();go('orders')">${ico("box")} عرض الاوردرات</button>
       <button class="btn btn-dark" onclick="closeSheet()">حسناً</button>
     </div>`);
 }
@@ -946,7 +990,7 @@ function openBinSheet() {
   state.bin = state.bin.filter(b => list.some(x => x.id === b.id));
   list = binList();
   if (!list.length) return toast("السلة فارغة");
-  openSheet(`<h2>🗑️ سلة المحذوفات</h2>
+  openSheet(`<h2>${ico("trashBin")} سلة المحذوفات</h2>
     <p class="tip">عناصر حذفت خلال آخر 30 يوم. اضغط «استرجاع» لإرجاعها لمكانها.</p>
     ${list.map(b => {
       const lb = binLabel(b);
@@ -1046,6 +1090,7 @@ SCREENS.settings = () => {
   updateDiag();
 };
 renderAll();
+hydrateIcons();
 applyTheme();
 maybeBackupReminder();
 maybeAutoBackup();
@@ -1072,6 +1117,7 @@ function openSheet(html, tag) {
 function renderSheetTop() {
   const top = sheetStack[sheetStack.length - 1];
   if (!top) { $("#overlay").classList.remove("show"); return; }
+  hydrateIcons($("#sheet"));
   $("#sheet").innerHTML = `
     <div class="sheet-top">
       <button class="sheet-close" onclick="closeSheet()">✕ إغلاق</button>
@@ -1165,7 +1211,7 @@ const SERVICE_OPTIONS = ["تصوير فوتو", "تصوير فيديو", "مون
 function showClientModal(id) {
   const c = id ? clientById(id) : null;
   openSheet(`
-    <h2>${c ? "✏️ تعديل عميل" : "➕ عميل جديد"}</h2>
+    <h2>${ico("user")} ${c ? "تعديل العميل" : "عميل جديد"}</h2>
     <div class="field"><label>اسم العميل *</label><input id="cName" value="${esc(c ? c.name : "")}" placeholder="مثال: أم محمد"></div>
     <div class="field"><label>رقم الجوال (اختياري)</label><input id="cPhone" type="tel" inputmode="tel" value="${esc(c ? c.phone : "")}" placeholder="05xxxxxxxx" dir="ltr"></div>
     <div class="field"><label>ملاحظات</label><textarea id="cDetails" placeholder="ملاحظات عن العميل...">${esc(c ? c.details : "")}</textarea></div>
@@ -1227,8 +1273,8 @@ function clientDetailHtml(id) {
         </div>
       </div>
       <div class="actions-inline">
-        <button class="btn btn-dark btn-slim" onclick='showPaymentModal("${o.id}")'>💳 تحصيل</button>
-        <button class="btn btn-dark btn-slim" onclick='sendOrderWhatsApp("${o.id}")'>📤 إرسال اوردر</button>
+        <button class="btn btn-dark btn-slim" onclick='showPaymentModal("${o.id}")'>${ico("wallet")} تحصيل</button>
+        <button class="btn btn-dark btn-slim" onclick='sendOrderWhatsApp("${o.id}")'>${ico("send")} إرسال اوردر</button>
         <button class="btn btn-dark btn-slim" onclick='showOrderModal("${o.id}")'>✏️ تعديل</button>
         <button class="rm" onclick='delOrder("${o.id}")'>حذف</button>
       </div>
@@ -1254,7 +1300,7 @@ function clientDetailHtml(id) {
       </div>
       <div class="meta" style="margin-top:6px;">مسدد: ${fmtMoney(lpaid)} من ${fmtMoney(l.amount)}${l.lastPaid ? ` · آخر تسديد: ${fmtDate(l.lastPaid)}` : ""}</div>
       <div class="actions-inline">
-        ${lrem > 0 ? `<button class="btn btn-dark btn-slim" onclick='showLedgerPayModal("${l.id}")'>💳 تسديد</button>` : ""}
+        ${lrem > 0 ? `<button class="btn btn-dark btn-slim" onclick='showLedgerPayModal("${l.id}")'>${ico("wallet")} تسديد</button>` : ""}
         <button class="btn btn-dark btn-slim" onclick='showLedgerModal("${id}","${l.id}")'>✏️ تعديل</button>
         <button class="rm" onclick='delLedger("${l.id}")'>حذف</button>
       </div>
@@ -1263,34 +1309,34 @@ function clientDetailHtml(id) {
 
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <h2>👥 ${esc(c.name)}</h2>
+      <h2>${ico("users")} ${esc(c.name)}</h2>
     </div>
-    ${c.phone ? `<div class="meta" style="margin-bottom:8px;">📱 ${esc(c.phone)}</div>` : ""}
+    ${c.phone ? `<div class="meta" style="margin-bottom:8px;">${ico("file")} ${esc(c.phone)}</div>` : ""}
     ${c.details ? `<div class="details" style="margin-bottom:8px;">${esc(c.details)}</div>` : ""}
     <div class="stats" style="margin-bottom:4px;">
-      <div class="stat"><div class="lbl">📦 الاوردرات</div><div class="val" style="font-size:18px;">${t.count}</div></div>
-      <div class="stat orders"><div class="lbl">💰 المطلوب</div><div class="val" style="font-size:18px;">${fmtMoney(t.total)}</div></div>
+      <div class="stat"><div class="lbl">${ico("box")} الاوردرات</div><div class="val" style="font-size:18px;">${t.count}</div></div>
+      <div class="stat orders"><div class="lbl">${ico("wallet")} المطلوب</div><div class="val" style="font-size:18px;">${fmtMoney(t.total)}</div></div>
       <div class="stat ok"><div class="lbl">💵 المدفوع</div><div class="val" style="font-size:18px;">${fmtMoney(t.paid)}</div></div>
-      <div class="stat due"><div class="lbl">📌 المتبقي</div><div class="val" style="font-size:18px;">${fmtMoney(t.remaining > 0 ? t.remaining : 0)}</div></div>
+      <div class="stat due"><div class="lbl">${ico("target")} المتبقي</div><div class="val" style="font-size:18px;">${fmtMoney(t.remaining > 0 ? t.remaining : 0)}</div></div>
     </div>
     <div class="actions" style="margin-top:6px;">
-      <button class="btn btn-primary" onclick="showOrderModal('','${id}')">➕ اوردر</button>
-      <button class="btn btn-dark" onclick="showPaymentModal('','${id}')">💰 دفعة</button>
-      <button class="btn btn-green" onclick="sendClientWhatsApp('${id}')">📤 إرسال اوردراته</button>
+      <button class="btn btn-primary" onclick="showOrderModal('','${id}')">${ico("plus")} اوردر</button>
+      <button class="btn btn-dark" onclick="showPaymentModal('','${id}')">${ico("wallet")} دفعة</button>
+      <button class="btn btn-green" onclick="sendClientWhatsApp('${id}')">${ico("send")} إرسال اوردراته</button>
     </div>
     <div class="actions" style="margin-top:8px;">
-      <button class="btn btn-dark" onclick="exportClientPDF('${id}')">📄 PDF اوردرات العميل</button>
+      <button class="btn btn-dark" onclick="exportClientPDF('${id}')">${ico("file")} PDF اوردرات العميل</button>
       <button class="btn btn-dark" onclick="showClientModal('${id}')">✏️ بيانات العميل</button>
     </div>
     <div class="ledger-box">
       <div class="ledger-title">📒 سجل المديونية <span class="count">${ledgers.length}</span></div>
       <div class="ledger-stats">
-        <div class="lstat lstat-total"><div class="lbl">💰 إجمالي البنود</div><div class="val">${fmtMoney(lt.total)}</div></div>
+        <div class="lstat lstat-total"><div class="lbl">${ico("wallet")} إجمالي البنود</div><div class="val">${fmtMoney(lt.total)}</div></div>
         <div class="lstat lstat-paid"><div class="lbl">💵 المسدد</div><div class="val">${fmtMoney(lt.paid)}</div></div>
-        <div class="lstat lstat-due"><div class="lbl">📌 المتبقي</div><div class="val">${fmtMoney(lt.remaining > 0 ? lt.remaining : 0)}</div></div>
+        <div class="lstat lstat-due"><div class="lbl">${ico("target")} المتبقي</div><div class="val">${fmtMoney(lt.remaining > 0 ? lt.remaining : 0)}</div></div>
       </div>
       <div class="actions" style="margin-top:6px;">
-        <button class="btn btn-primary btn-slim" onclick="showLedgerModal('${id}')">➕ بند مديونية</button>
+        <button class="btn btn-primary btn-slim" onclick="showLedgerModal('${id}')">${ico("plus")} بند مديونية</button>
       </div>
       ${ledgerHtml}
     </div>
@@ -1303,7 +1349,7 @@ function clientDetailHtml(id) {
 function showLedgerModal(clientId, entryId) {
   const e = entryId ? (state.ledger || []).find(x => x.id === entryId) : null;
   openSheet(`
-    <h2>${e ? "✏️ تعديل بند" : "➕ بند مديونية"}</h2>
+    <h2>${ico("file")} ${e ? "تعديل البند" : "بند مديونية جديد"}</h2>
     <div class="field"><label>العميل</label><input value="${esc(clientName(clientId))}" disabled></div>
     <div class="field"><label>البيان *</label><input id="lTitle" value="${esc(e ? e.title : "")}" placeholder="مثال: سلفة نقدية"></div>
     <div class="field-row">
@@ -1345,7 +1391,7 @@ function showLedgerPayModal(entryId) {
   if (!e) return;
   const rem = Number(e.amount) - (Number(e.paid) || 0);
   openSheet(`
-    <h2>💳 تسديد بند</h2>
+    <h2>${ico("wallet")} تسديد بند</h2>
     <div class="meta" style="margin-bottom:8px;">${esc(e.title)} · المتبقي ${fmtMoney(rem > 0 ? rem : 0)}</div>
     <div class="field"><label>مبلغ التسديد *</label><input id="lpAmount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
     <div class="field"><label>التاريخ</label><input id="lpDate" type="date" value="${todayStr()}"></div>
@@ -1394,19 +1440,19 @@ function clientActionsHtml(id) {
   const lrem = lt.remaining > 0 ? lt.remaining : 0;
   return `
     <div class="sheet-header-card">
-      <h2>👥 ${esc(c.name)}</h2>
-      ${c.phone ? `<div class="sheet-phone">📱 ${esc(c.phone)}</div>` : ""}
+      <h2>${ico("users")} ${esc(c.name)}</h2>
+      ${c.phone ? `<div class="sheet-phone">${ico("file")} ${esc(c.phone)}</div>` : ""}
       <div class="sheet-stats">
         <span class="stat-chip">📦 <b>${t.count}</b> اوردر</span>
-        <span class="stat-chip highlighted">💰 متبقي: <b>${fmtMoney(t.remaining > 0 ? t.remaining : 0)}</b></span>
+        <span class="stat-chip highlighted">${ico("wallet")} متبقي: <b>${fmtMoney(t.remaining > 0 ? t.remaining : 0)}</b></span>
         ${lt.count > 0 ? `<span class="stat-chip ledger-chip">📒 مديونية: <b>${fmtMoney(lrem)}</b></span>` : ""}
       </div>
     </div>
     <div class="sheet-grid">
-      <button class="btn btn-primary" onclick="closeSheet();showClientDetail('${id}')">👥 فتح بطاقة العميل</button>
+      <button class="btn btn-primary" onclick="closeSheet();showClientDetail('${id}')">${ico("users")} فتح بطاقة العميل</button>
       <button class="btn btn-dark" onclick="showLedgerModal('${id}')">📒 بند مديونية</button>
-      <button class="btn btn-green" onclick="closeSheet();sendClientWhatsApp('${id}')">📤 واتساب</button>
-      <button class="btn btn-dark" onclick="closeSheet();exportClientPDF('${id}')">📄 PDF</button>
+      <button class="btn btn-green" onclick="closeSheet();sendClientWhatsApp('${id}')">${ico("send")} واتساب</button>
+      <button class="btn btn-dark" onclick="closeSheet();exportClientPDF('${id}')">${ico("file")} PDF</button>
       <button class="btn btn-dark" onclick="showClientModal('${id}')">✏️ بيانات العميل</button>
       <button class="btn btn-danger" onclick="closeSheet();delClient('${id}')">🗑️ حذف</button>
     </div>
@@ -1459,11 +1505,11 @@ function showOrderModal(id, clientId) {
   const isCustom = o && !svcList.includes(o.service);
   const selClientId = o ? o.clientId : (clientId || "");
   const clientOpts = `
-    <option value="__new">➕ عميل جديد...</option>
+    <option value="__new">${ico("plus")} عميل جديد...</option>
     ${state.clients.slice().sort((a, b) => a.name.localeCompare(b.name, "ar")).map(c =>
       `<option value="${c.id}" ${selClientId === c.id ? "selected" : ""}>${esc(c.name)}${c.phone ? " · " + esc(c.phone) : ""}</option>`).join("")}`;
   openSheet(`
-    <h2>${o ? "✏️ تعديل اوردر" : "➕ اوردر جديد"}</h2>
+    <h2>${ico("box")} ${o ? "تعديل الاوردر" : "اوردر جديد"}</h2>
     <div class="field"><label>العميل *</label><select id="oClient">${clientOpts}</select></div>
     <div class="field" id="newClientWrap" style="display:none;">
       <div class="field"><label>اسم العميل الجديد *</label><input id="oNewClient" placeholder="مثال: أم محمد"></div>
@@ -1520,7 +1566,7 @@ function showPaymentModal(orderId, clientId, payId) {
   const oSel = ex ? ex.orderId : (order ? order.id : "");
   const prefillCid = clientId || (ex ? ((state.orders.find(x => x.id === (ex.orderId || "")) || {}).clientId || "") : "");
   openSheet(`
-    <h2>${ex ? "✏️ تعديل دفعة" : "💰 تسجيل دفعة"}</h2>
+    <h2>${ico("wallet")} ${ex ? "تعديل الدفعة" : "تسجيل دفعة"}</h2>
     <div class="field"><label>اسم العميل *</label><input id="pClient" value="${esc(prefill)}" placeholder="مثال: أم محمد"></div>
     <div class="field"><label>المبلغ *</label><input id="pAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${ex ? ex.amount : ""}" placeholder="0"></div>
     <div class="field-row">
@@ -1638,19 +1684,19 @@ function orderActionsHtml(id) {
   const remain = Number(o.amount) - paid;
   return `
     <div class="sheet-header-card">
-      <h2>📦 ${esc(o.client)}</h2>
+      <h2>${ico("box")} ${esc(o.client)}</h2>
       <div class="sheet-stats">
-        <span class="stat-chip">📅 ${fmtDate(o.date)}</span>
-        ${o.service ? `<span class="stat-chip">🎬 ${esc(o.service)}</span>` : ""}
-        <span class="stat-chip highlighted">💰 الإجمالي: <b>${fmtMoney(o.amount)}</b></span>
-        <span class="stat-chip ${remain > 0 ? 'due-chip' : 'ok-chip'}">${remain > 0 ? "⚠️ متبقي: <b>" + fmtMoney(remain) + "</b>" : "✓ مدفوع كامل"}</span>
+        <span class="stat-chip">${ico("calendar")} ${fmtDate(o.date)}</span>
+        ${o.service ? `<span class="stat-chip">${ico("camera")} ${esc(o.service)}</span>` : ""}
+        <span class="stat-chip highlighted">${ico("wallet")} الإجمالي: <b>${fmtMoney(o.amount)}</b></span>
+        <span class="stat-chip ${remain > 0 ? 'due-chip' : 'ok-chip'}">${remain > 0 ? ico("target") + " متبقي: <b>" + fmtMoney(remain) + "</b>" : ico("check") + " مدفوع كامل"}</span>
       </div>
     </div>
     <div class="sheet-grid">
-      <button class="btn btn-primary" onclick="showPaymentModal('${id}')">💳 تحصيل</button>
+      <button class="btn btn-primary" onclick="showPaymentModal('${id}')">${ico("wallet")} تحصيل</button>
       <button class="btn btn-dark" onclick="showOrderModal('${id}')">✏️ تعديل</button>
-      <button class="btn btn-green" onclick="closeSheet();sendOrderWhatsApp('${id}')">📤 واتساب</button>
-      <button class="btn btn-dark" onclick="closeSheet();exportOrdersPDF(['${id}'],'اوردر')">📄 PDF</button>
+      <button class="btn btn-green" onclick="closeSheet();sendOrderWhatsApp('${id}')">${ico("send")} واتساب</button>
+      <button class="btn btn-dark" onclick="closeSheet();exportOrdersPDF(['${id}'],'اوردر')">${ico("file")} PDF</button>
       <button class="btn btn-danger full-width" onclick="closeSheet();delOrder('${id}')">🗑️ حذف الاوردر</button>
     </div>
   `;
@@ -1727,15 +1773,15 @@ function renderBookings() {
           <div class="name">📅 ${esc(b.title || "حجز تصوير")}${b.done ? " ✓" : ""}</div>
           <div class="meta">
             <span>${fmtDate(b.date)}${b.time ? " · " + esc(b.time) : ""}</span>
-            ${b.client ? `<span class="badge">👥 ${esc(b.client)}</span>` : ""}
+            ${b.client ? `<span class="badge">${ico("users")} ${esc(b.client)}</span>` : ""}
           </div>
         </div>
         <div class="amt" style="font-size:13px;${b.done ? "color:var(--ok);" : (b.date < t ? "color:var(--danger);" : "")}">${b.done ? "تم ✓" : esc(daysLabel(n))}</div>
       </div>
       ${b.details ? `<div class="details">${esc(b.details)}</div>` : ""}
       <div class="actions-inline">
-        ${b.done ? `<button class="btn btn-dark btn-slim" onclick='toggleBookingDone("${b.id}")'>↩️ إعادة فتح</button>` : `<button class="btn btn-dark btn-slim" onclick='toggleBookingDone("${b.id}")'>✅ تم</button>`}
-        <button class="btn btn-dark btn-slim" onclick='sendBookingWhatsApp("${b.id}")'>📤 واتساب</button>
+        ${b.done ? `<button class="btn btn-dark btn-slim" onclick='toggleBookingDone("${b.id}")'>↩️ إعادة فتح</button>` : `<button class="btn btn-dark btn-slim" onclick='toggleBookingDone("${b.id}")'>${ico("check")} تم</button>`}
+        <button class="btn btn-dark btn-slim" onclick='sendBookingWhatsApp("${b.id}")'>${ico("send")} واتساب</button>
         <button class="btn btn-dark btn-slim" onclick='showBookingModal("${b.id}")'>✏️ تعديل</button>
         <button class="rm" onclick='delBooking("${b.id}")'>حذف</button>
       </div>
@@ -1752,7 +1798,7 @@ function showBookingModal(id) {
   const b = id ? (state.bookings || []).find(x => x.id === id) : null;
   const selCid = b ? (b.clientId || "") : "";
   openSheet(`
-    <h2>${b ? "✏️ تعديل حجز" : "📅 حجز تصوير جديد"}</h2>
+    <h2>${ico("calendar")} ${b ? "تعديل الحجز" : "حجز تصوير جديد"}</h2>
     <div class="field"><label>العميل (اختياري)</label><select id="bClient">
       <option value="">— بدون ربط بعميل —</option>
       ${state.clients.slice().sort((a, c) => a.name.localeCompare(c.name, "ar")).map(c => `<option value="${c.id}" ${selCid === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
@@ -1763,7 +1809,7 @@ function showBookingModal(id) {
       <div class="field"><label>الوقت</label><input id="bTime" type="time" value="${b ? (b.time || "") : ""}"></div>
     </div>
     <div class="field"><label>التنبيه</label><select id="bRemind">
-      <option value="day" ${!b || b.remind === "day" ? "selected" : ""}>⏰ قبل الموعد بيوم</option>
+      <option value="day" ${!b || b.remind === "day" ? "selected" : ""}>${ico("clock")} قبل الموعد بيوم</option>
       <option value="sameday" ${b && b.remind === "sameday" ? "selected" : ""}>📍 يوم الموعد</option>
       <option value="none" ${b && b.remind === "none" ? "selected" : ""}>🔕 بدون تنبيه</option>
     </select></div>
@@ -1844,7 +1890,7 @@ function renderPhotographerDues() {
         <div>
           <div class="due-name">${esc(d.name || "مصور")}</div>
           <div class="due-meta">
-            <span>📅 ${fmtDate(d.date)}</span>
+            <span>${ico("calendar")} ${fmtDate(d.date)}</span>
             ${d.type ? `<span class="due-type">🎬 ${esc(d.type)}</span>` : ""}
           </div>
         </div>
@@ -1860,7 +1906,7 @@ function renderPhotographerDues() {
 function showPhotographerDueModal(id) {
   const d = id ? (state.photographerDues || []).find(x => x.id === id) : null;
   openSheet(`
-    <h2>${d ? "✏️ تعديل مستحق" : "🤝 مستحق جديد لمصور"}</h2>
+    <h2>${ico("hand")} ${d ? "تعديل المستحق" : "مستحق جديد لمصور"}</h2>
     <div class="field"><label>اسم المصور *</label><input id="pdName" value="${esc(d ? d.name : "")}" placeholder="مثال: أبو خالد"></div>
     <div class="field"><label>نوع التصوير</label><input id="pdType" value="${esc(d ? d.type : "")}" placeholder="مثال: فوتو / فيديو / مونتاج"></div>
     <div class="field-row">
@@ -2485,8 +2531,8 @@ function renderReport() {
   let html = `<div class="stats">
     <div class="stat total orders"><div class="lbl">📦 إجمالي الأوردرات · ${d.orders.length}</div><div class="val">${fmtMoney(oSum)}</div></div>
     <div class="stat ok"><div class="lbl">💰 المحصّل · ${d.payments.length}</div><div class="val">${fmtMoney(pSum)}</div></div>
-    <div class="stat due"><div class="lbl">📌 المتبقي للتحصيل</div><div class="val">${fmtMoney(due > 0 ? due : 0)}</div></div>
-    <div class="stat ${net >= 0 ? "ok" : "exp"}"><div class="lbl">📊 صافي الربح</div><div class="val">${fmtMoney(net)}</div></div>
+    <div class="stat due"><div class="lbl">${ico("target")} المتبقي للتحصيل</div><div class="val">${fmtMoney(due > 0 ? due : 0)}</div></div>
+    <div class="stat ${net >= 0 ? "ok" : "exp"}"><div class="lbl">${ico("chart")} صافي الربح</div><div class="val">${fmtMoney(net)}</div></div>
     <div class="stat"><div class="lbl">🎯 نسبة التحصيل</div><div class="val">${rate}<small>%</small></div></div>
   </div>`;
 
