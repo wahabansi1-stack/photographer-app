@@ -1,5 +1,11 @@
 "use strict";
 const LS_KEY = "photographer_ledger_v1";
+/* ثوابت التخزين: يجب أن تُعرَّف قبل أول load */
+const LS_TMP = LS_KEY + "__tmp", LS_GOOD = LS_KEY + "__good", LS_PREWIPE = LS_KEY + "__prewipe";
+const SNAP_PREFIX = "pl_snap_", DATA_VER = 3, SNAP_MAX = 7, BIG_DATA = 400000;
+const ARRAYS = ["orders", "payments", "clients", "ledger", "bookings", "photographerDues", "bin"];
+const errorLog = [];
+let saveTimer = null, saveFailed = false;
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
@@ -8,58 +14,86 @@ let reportRange = "month";
 let selectMode = false;
 let selected = new Set();
 
-function load() {
-  let base = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], bin: [], settings: {} };
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const d = JSON.parse(raw);
-      base = Object.assign(base, d);
-    }
-  } catch (e) {}
-  if (!Array.isArray(base.clients)) base.clients = [];
-  if (!Array.isArray(base.ledger)) base.ledger = [];
-  if (!Array.isArray(base.bookings)) base.bookings = [];
-  if (!Array.isArray(base.photographerDues)) base.photographerDues = [];
-  if (!Array.isArray(base.bin)) base.bin = [];
-  base.clients.forEach(c => {
-    c.name = (c.name || "").trim();
-    if (!c.name) c.name = "عميل";
-    if (!c.phone) c.phone = "";
-    if (!c.details) c.details = "";
-  });
-  const nameToId = {};
-  base.clients.forEach(c => { nameToId[c.name] = c.id; });
-  base.orders.forEach(o => {
+/* ---------- Store: ترقية بيانات + حفظ آمن ---------- */
+const SNAP_MAX_BIG = 2;
+function migrate(d) {
+  const b = { dataVer: DATA_VER, orders: [], payments: [], clients: [], ledger: [], bookings: [], photographerDues: [], bin: [], settings: {} };
+  if (!d || typeof d !== "object") return b;
+  ARRAYS.forEach(k => { if (Array.isArray(d[k])) b[k] = d[k]; });
+  if (d.settings && typeof d.settings === "object") b.settings = d.settings;
+  b.clients.forEach(c => { c.id = c.id || uid(); c.name = (c.name || "").trim() || "عميل"; c.phone = c.phone || ""; c.details = c.details || ""; });
+  const byName = {};
+  b.clients.forEach(c => { byName[c.name] = c.id; });
+  b.orders.forEach(o => {
+    o.id = o.id || uid(); o.amount = Number(o.amount) || 0; o.date = o.date || todayStr();
     if (!o.clientId) {
       const nm = (o.client || "").trim() || "عميل";
-      let cid = nameToId[nm];
-      if (!cid) {
-        cid = uid();
-        base.clients.push({ id: cid, name: nm, phone: "", details: "" });
-        nameToId[nm] = cid;
-      }
-      o.clientId = cid;
+      if (!byName[nm]) { byName[nm] = uid(); b.clients.push({ id: byName[nm], name: nm, phone: "", details: "" }); }
+      o.clientId = byName[nm];
     }
-    if (!o.client) {
-      const c = base.clients.find(x => x.id === o.clientId);
-      o.client = c ? c.name : "عميل";
-    }
+    const c = b.clients.find(x => x.id === o.clientId);
+    o.client = o.client || (c ? c.name : "عميل");
   });
-  return base;
+  b.payments.forEach(p => { p.id = p.id || uid(); p.amount = Number(p.amount) || 0; p.date = p.date || todayStr(); p.orderId = p.orderId || ""; });
+  b.ledger.forEach(l => { l.id = l.id || uid(); l.amount = Number(l.amount) || 0; l.paid = Number(l.paid) || 0; l.date = l.date || todayStr(); });
+  b.bookings.forEach(x => { x.id = x.id || uid(); x.date = x.date || todayStr(); x.done = !!x.done; });
+  b.photographerDues.forEach(x => { x.id = x.id || uid(); x.amount = Number(x.amount) || 0; x.date = x.date || todayStr(); });
+  b.bin = b.bin.filter(x => x && x.id && x.item);
+  return b;
 }
-let saveWarned = false;
-function save() {
+function load() {
+  let d = readKey(LS_KEY);
+  if (!d || !Array.isArray(d.orders)) {
+    const good = readKey(LS_GOOD);
+    if (good && Array.isArray(good.orders)) { d = good; setTimeout(() => toast("⚠️ تم استرجاع آخر نسخة سليمة للبيانات"), 1400); }
+  }
+  return migrate(d);
+}
+function readKey(k) {
+  try { const raw = localStorage.getItem(k); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+function snapshots() {
+  const keys = [];
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(SNAP_PREFIX) === 0) keys.push(k); } } catch (_) {}
+  return keys.sort();
+}
+function dailySnapshot(json) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    const key = SNAP_PREFIX + todayStr();
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, json);
+    const keys = snapshots();
+    const max = json.length > BIG_DATA ? SNAP_MAX_BIG : SNAP_MAX;
+    while (keys.length > max) localStorage.removeItem(keys.shift());
+  } catch (_) {}
+}
+function saveNow() {
+  saveTimer = null;
+  try {
+    const json = JSON.stringify(state);
+    const prev = localStorage.getItem(LS_KEY);
+    if (prev) { try { JSON.parse(prev); localStorage.setItem(LS_GOOD, prev); } catch (_) {} }
+    localStorage.setItem(LS_TMP, json);
+    const check = JSON.parse(localStorage.getItem(LS_TMP) || "null");
+    if (!check || !Array.isArray(check.orders)) throw new Error("verify");
+    localStorage.setItem(LS_KEY, json);
+    try { localStorage.removeItem(LS_TMP); } catch (_) {}
+    saveFailed = false;
+    dailySnapshot(json);
   } catch (e) {
     console.error("storage write failed", e);
-    if (!saveWarned) {
-      saveWarned = true;
-      setTimeout(() => alert("⚠️ تعذر حفظ البيانات في هذا المتصفح (المساحة ممتلئة أو وضع التصفح الخاص). العملية ستُفقد عند إغلاق التطبيق — انسخ نسخة احتياطية الآن من الإعدادات ← تصدير."), 300);
+    try { localStorage.removeItem(LS_TMP); } catch (_) {}
+    if (!saveFailed) {
+      saveFailed = true;
+      setTimeout(() => alert("⚠️ تعذر حفظ البيانات (المساحة ممتلئة أو التصفح الخاص).\nما تكتبه الآن سيُفقد عند إغلاق التطبيق — صدّر نسخة احتياطية فوراً من «التقرير ← التصدير»."), 300);
     }
   }
 }
+function save() { if (!saveTimer) saveTimer = setTimeout(saveNow, 150); }
+function flushSave() { if (saveTimer) { clearTimeout(saveTimer); saveNow(); } }
+window.addEventListener("pagehide", flushSave);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushSave(); });
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -108,17 +142,19 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v35";
+const APP_VER = "v36";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
 } catch (_) {}
 window.addEventListener("error", e => {
   try {
-    const m = "⚠️ خطأ: " + (e.message || "غير معروف");
+    const msg = e.message || "غير معروف";
+    errorLog.unshift({ t: new Date().toLocaleTimeString(), m: msg });
+    if (errorLog.length > 20) errorLog.length = 20;
     const av = document.querySelector("#appVer");
-    if (av) av.textContent = m;
-    toast(m);
+    if (av) av.textContent = "⚠️ خطأ: " + msg;
+    toast("⚠️ خطأ: " + msg);
   } catch (_) {}
 });
 
@@ -128,6 +164,7 @@ function go(which) {
     selectMode = false;
     selected.clear();
   }
+  currentScreen = which;
   $$("nav button").forEach(b => b.classList.toggle("active", b.dataset.nav === which));
   $$(".screen").forEach(s => s.classList.toggle("active", s.id === "screen-" + which));
   refresh();
@@ -318,7 +355,7 @@ function renderOrders() {
       ? `<div class="check">✓</div>`
       : `<span class="more" title="خيارات">⋯</span>`;
     return `
-    <div class="item pressable ${selectMode ? "selectable" : "tappable"} ${isSel ? "selecting" : ""}" ontouchstart='pressStart(event,"order","${o.id}")' ontouchend='pressEnd(event)' ontouchmove='pressCancel()' onmousedown='pressStart(event,"order","${o.id}")' onmouseup='pressEnd(event)' onmouseleave='pressCancel()' onclick='pressTap(event,"order","${o.id}")' oncontextmenu='return false'>
+    <div class="item pressable ${selectMode ? "selectable" : "tappable"} ${isSel ? "selecting" : ""}" onpointerdown='pressStart(event,"order","${o.id}")' onpointerup='pressEnd(event)' onpointercancel='pressEnd(event)' onpointerleave='pressCancel()' onclick='pressTap(event,"order","${o.id}")' oncontextmenu='return false'>
       <div class="top">
         <div>
           <div class="name">📦 ${esc(o.client)}</div>
@@ -376,7 +413,7 @@ function renderClients() {
   $("#clientsList").innerHTML = list.length ? list.map(c => {
     const t = clientTotals(c.id);
     return `
-    <div class="item tappable pressable" ontouchstart='pressStart(event,"client","${c.id}")' ontouchend='pressEnd(event)' ontouchmove='pressCancel()' onmousedown='pressStart(event,"client","${c.id}")' onmouseup='pressEnd(event)' onmouseleave='pressCancel()' onclick='pressTap(event,"client","${c.id}")' oncontextmenu='return false'>
+    <div class="item tappable pressable" onpointerdown='pressStart(event,"client","${c.id}")' onpointerup='pressEnd(event)' onpointercancel='pressEnd(event)' onpointerleave='pressCancel()' onclick='pressTap(event,"client","${c.id}")' oncontextmenu='return false'>
       <div class="top">
         <div>
           <div class="name">👥 ${esc(c.name)}</div>
@@ -869,22 +906,60 @@ function emptyBin() {
 /* --- Modals sheet stack: back returns to previous --- */
 let sheetStack = [];
 
+/* ---------- الرسم: الشاشة النشطة فقط ---------- */
+const SCREENS = {};
+let currentScreen = "home";
+function updateBadges() {
+  const badge = $("#bookingBadge");
+  if (badge) {
+    const t = todayStr();
+    const n = (state.bookings || []).filter(b => !b.done && b.date <= t).length;
+    badge.style.display = n ? "flex" : "none";
+    badge.textContent = n > 9 ? "9+" : n;
+  }
+  renderBinCount();
+}
+function renderActive() {
+  const fn = SCREENS[currentScreen];
+  if (fn) { try { fn(); } catch (e) { console.error(e); } }
+  updateBadges();
+}
 function refresh() {
   buildMonths();
-  renderHome();
-  renderClients();
-  renderOrders();
-  renderPayments();
-  renderBookings();
-  renderPhotographerDues();
+  renderActive();
+  rebuildSheets();
+}
+function renderAll() {
+  buildMonths();
+  Object.keys(SCREENS).forEach(k => { try { SCREENS[k](); } catch (e) { console.error(e); } });
+  updateBadges();
+  rebuildSheets();
+}
+let searchT = null;
+function onSearchInput() {
+  if (searchT) clearTimeout(searchT);
+  searchT = setTimeout(() => {
+    searchT = null;
+    renderGlobalSearch();
+    renderOrders();
+    renderClients();
+  }, 180);
+}
+SCREENS.home = renderHome;
+SCREENS.orders = renderOrders;
+SCREENS.clients = renderClients;
+SCREENS.payments = renderPayments;
+SCREENS.bookings = renderBookings;
+SCREENS.dues = renderPhotographerDues;
+SCREENS.settings = () => {
   renderReport();
   renderDashboard();
   fillSettings();
   fillBackupSettings();
-  renderSelectBar();
-  rebuildSheets();
-}
-refresh();
+  renderBinCount();
+  updateDiag();
+};
+renderAll();
 applyTheme();
 maybeBackupReminder();
 maybeAutoBackup();
@@ -2373,7 +2448,65 @@ function sendWhatsApp() {
   openWhatsApp(num, buildReport());
 }
 
-/* ---------- Export / Import ---------- */
+/* ---------- نسخ مشفّرة (AES-GCM + PBKDF2) ---------- */
+const ENC_TAG = "PLENC1:";
+function b64(buf) {
+  const b = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+  return btoa(s);
+}
+function unb64(s) {
+  const bin = atob(s);
+  const a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+async function encKey(pass, salt) {
+  const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: 200000, hash: "SHA-256" },
+    km, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function encryptText(text, pass) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await encKey(pass, salt);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, new TextEncoder().encode(text));
+  return ENC_TAG + b64(salt) + "." + b64(iv) + "." + b64(ct);
+}
+async function decryptText(payload, pass) {
+  const parts = payload.trim().replace(ENC_TAG, "").split(".");
+  if (parts.length !== 3) throw new Error("bad format");
+  const key = await encKey(pass, unb64(parts[0]));
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(parts[1]) }, key, unb64(parts[2]));
+  return new TextDecoder().decode(pt);
+}
+async function exportEncrypted() {
+  if (!window.crypto || !crypto.subtle) return toast("التشفير يحتاج اتصال HTTPS");
+  const pass = ($("#encPass") && $("#encPass").value) || "";
+  if (pass.length < 4) return toast("اكتب كلمة مرور من 4 أحرف على الأقل");
+  flushSave();
+  try {
+    const blob = await encryptText(JSON.stringify(state), pass);
+    exportFile("نسخة-مشفرة-دفتر-التصوير.txt", "text/plain;charset=utf-8", blob);
+    toast("تم إنشاء نسخة مشفّرة ✓");
+  } catch (e) {
+    toast("تعذر التشفير: " + (e.message || "خطأ"));
+  }
+}
+async function importEncrypted() {
+  if (!window.crypto || !crypto.subtle) return toast("فك التشفير يحتاج اتصال HTTPS");
+  const txt = ($("#importBox") && $("#importBox").value || "").trim();
+  const pass = ($("#encPass") && $("#encPass").value) || "";
+  if (!txt) return toast("الصق النسخة المشفّرة في صندوق الاسترجاع");
+  if (txt.indexOf(ENC_TAG) !== 0) return toast("هذه ليست نسخة مشفّرة — استخدم «استرجاع البيانات» للنص العادي");
+  if (!pass) return toast("اكتب كلمة المرور");
+  try {
+    applyImportedJSON(await decryptText(txt, pass));
+  } catch (e) {
+    toast("فشل فك التشفير — كلمة المرور غير صحيحة");
+  }
+}
 function exportFile(name, mime, content) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -2412,59 +2545,134 @@ function exportJSON() {
   toast("تم تصدير النسخة الاحتياطية");
 }
 
+function applyImportedJSON(d) {
+  if (!d || !Array.isArray(d.orders) || !Array.isArray(d.payments)) {
+    toast("ملف غير صالح");
+    return false;
+  }
+  if (!confirm("سيتم استبدال البيانات الحالية. متابعة؟")) return false;
+  state = migrate(d);
+  saveNow();
+  const box = $("#importBox");
+  if (box) box.value = "";
+  renderAll();
+  toast("تم استرجاع البيانات ✓");
+  return true;
+}
 function importJSON() {
-  const txt = $("#importBox").value.trim();
+  const txt = ($("#importBox") && $("#importBox").value || "").trim();
   if (!txt) return toast("الصق النص الاحتياطي أولاً");
   try {
-    const d = JSON.parse(txt);
-    if (!d || !Array.isArray(d.orders) || !Array.isArray(d.payments)) {
-      return toast("ملف غير صالح");
-    }
-    if (!confirm("سيتم استبدال البيانات الحالية. متابعة؟")) return;
-    state = {
-      orders: d.orders,
-      payments: d.payments,
-      clients: Array.isArray(d.clients) ? d.clients : [],
-      ledger: Array.isArray(d.ledger) ? d.ledger : [],
-      bookings: Array.isArray(d.bookings) ? d.bookings : [],
-      photographerDues: Array.isArray(d.photographerDues) ? d.photographerDues : [],
-      bin: Array.isArray(d.bin) ? d.bin : [],
-      settings: Object.assign({}, state.settings, d.settings || {})
-    };
-    save();
-    $("#importBox").value = "";
-    refresh();
-    toast("تم استرجاع البيانات");
+    applyImportedJSON(JSON.parse(txt));
   } catch (e) {
     toast("النص غير صالح");
   }
+}
+function restorePreWipe() {
+  const d = readKey(LS_PREWIPE);
+  if (!d) return toast("لا توجد نسخة محفوظة قبل المسح");
+  if (!confirm("استرجاع البيانات المحفوظة قبل آخر مسح؟")) return;
+  state = migrate(d);
+  saveNow();
+  renderAll();
+  toast("تمت استعادة البيانات قبل المسح ✓");
 }
 
 function confirmClear() {
   if (!confirm("حذف كل البيانات نهائياً؟ لا يمكن التراجع!")) return;
   if (!confirm("تأكيد أخير: هل أنت متأكد تماماً؟")) return;
-  state = { orders: [], payments: [], expenses: [], clients: [], ledger: [], bookings: [], photographerDues: [], bin: [], settings: state.settings };
-  save();
-  refresh();
-  toast("تم مسح كل البيانات");
+  try {
+    localStorage.setItem(LS_PREWIPE, JSON.stringify(state));
+    exportFile("قبل-المسح-دفتر-التصوير.json", "application/json", JSON.stringify(state));
+  } catch (_) {}
+  state = { dataVer: DATA_VER, orders: [], payments: [], clients: [], ledger: [], bookings: [], photographerDues: [], bin: [], settings: state.settings };
+  saveNow();
+  renderAll();
+  toast("تم مسح كل البيانات — نسخة احتياطية أُنشئت قبل المسح");
 }
 
-/* ---------- Install ---------- */
+/* ---------- التثبيت + التحديث + التشخيص ---------- */
+let deferredPrompt = null, reloading = false;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const b = $("#installBtn");
+  if (b) b.textContent = "📲 تثبيت التطبيق على الجهاز";
+  updateDiag();
+});
+window.addEventListener("appinstalled", () => {
+  deferredPrompt = null;
+  toast("تم تثبيت التطبيق ✓");
+  updateDiag();
+});
+function isStandalone() {
+  return !!navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+}
+function showUpdateBanner() {
+  const b = $("#updateBanner");
+  if (b) b.style.display = "flex";
+}
+function applyUpdate() {
+  const b = $("#updateBanner");
+  if (b) b.style.display = "none";
+  flushSave();
+  if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      else if (reg) reg.update();
+    }).catch(() => {});
+  }
+  setTimeout(() => location.reload(), 1500);
+}
 function installApp() {
-  if (navigator.standalone) {
-    toast("التطبيق مثبت بالفعل");
+  if (isStandalone()) return toast("التطبيق مثبت بالفعل ✓");
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(() => { deferredPrompt = null; updateDiag(); });
     return;
   }
-  if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
-    toast("التطبيق يعمل بوضع التثبيت");
-    return;
-  }
-  alert("من سفاري اضغط زر المشاركة (⬆️) ثم اختر «إضافة إلى الشاشة الرئيسية» لاستخدام التطبيق كتطبيق كامل.");
+  alert("للتثبيت: من سفاري اضغط زر المشاركة (⬆️) ثم «إضافة إلى الشاشة الرئيسية».\nومن كروم: اضغط ⋮ ثم «تثبيت التطبيق».");
+}
+function kb(n) {
+  if (!n) return "0 KB";
+  return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+}
+function updateDiag() {
+  const box = $("#diagBox");
+  if (!box) return;
+  const snaps = snapshots();
+  const lastSnap = snaps.length ? snaps[snaps.length - 1].replace(SNAP_PREFIX, "") : "—";
+  const rows = [
+    ["الإصدار", APP_VER],
+    ["نسخة البيانات", "v" + (state.dataVer || 1)],
+    ["السجلات", state.orders.length + " اوردر · " + state.payments.length + " دفعة · " + state.clients.length + " عميل"],
+    ["اللقطات اليومية", snaps.length + " (" + lastSnap + ")"],
+    ["آخر نسخة احتياطية", state.settings.lastBackup ? fmtDate(new Date(state.settings.lastBackup).toISOString().slice(0, 10)) : "لا يوجد"],
+    ["التطبيق مثبت", isStandalone() ? "نعم" : "لا"],
+    ["حجم البيانات", kb((JSON.stringify(state) || "").length)],
+    ["أخطاء مسجلة", String(errorLog.length)]
+  ];
+  box.innerHTML = rows.map(r => `<div class="dk">${r[0]}</div><div class="dv">${esc(r[1])}</div>`).join("");
+}
+function copyDiagnostics() {
+  const txt = "دفتر التصوير — تقرير فني\nالإصدار: " + APP_VER + "\nالبيانات: v" + (state.dataVer || 1) +
+    "\nالسجلات: " + state.orders.length + " اوردر، " + state.payments.length + " دفعة، " + state.clients.length + " عميل" +
+    "\nاللقطات: " + snapshots().length + "\nآخر نسخة: " + (state.settings.lastBackup || "لا يوجد") +
+    "\nالأخطاء: " + (errorLog.length ? errorLog.map(e => e.t + " " + e.m).join(" | ") : "لا يوجد");
+  navigator.clipboard ? navigator.clipboard.writeText(txt).then(() => toast("تم نسخ التقرير الفني ✓"), () => toast("تعذر النسخ"))
+    : toast("غير مدعوم على هذا المتصفح");
 }
 
 /* ---------- Service worker / offline ---------- */
 if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js")
+      .then(reg => { watchSW(reg); updateDiag(); })
+      .catch(() => {});
+  });
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
   });
 }

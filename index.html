@@ -21,7 +21,7 @@
 
   <section class="screen active" id="screen-home">
     <div class="field" style="margin-bottom:12px;">
-      <input type="search" id="globalSearch" class="search-box" placeholder="🔍 بحث فوري في كل شيء: عملاء، اوردرات، مدفوعات، حجوزات، مستحقات..." oninput="renderGlobalSearch()" autocomplete="off">
+      <input type="search" id="globalSearch" class="search-box" placeholder="🔍 بحث فوري في كل شيء: عملاء، اوردرات، مدفوعات، حجوزات، مستحقات..." oninput="onSearchInput()" autocomplete="off">
     </div>
     <div id="globalSearchResults" style="display:none;margin-bottom:12px;"></div>
     <div id="homeStats" class="stats"></div>
@@ -40,7 +40,7 @@
         <button id="selectModeBtn" class="btn btn-dark btn-slim" onclick="toggleSelectMode()">تحديد</button>
       </div>
     </div>
-    <input id="orderSearch" class="search-box" placeholder="🔍 بحث باسم العميل أو الخدمة..." oninput="renderOrders()">
+    <input id="orderSearch" class="search-box" placeholder="🔍 بحث باسم العميل أو الخدمة..." oninput="onSearchInput()">
     <div id="ordersList"></div>
   </section>
 
@@ -51,7 +51,7 @@
         <button class="btn btn-primary btn-slim" onclick="showClientModal()">+ عميل</button>
       </div>
     </div>
-    <input id="clientSearch" class="search-box" placeholder="🔍 بحث باسم العميل أو الجوال..." oninput="renderClients()">
+    <input id="clientSearch" class="search-box" placeholder="🔍 بحث باسم العميل أو الجوال..." oninput="onSearchInput()">
     <div class="tip" style="margin:0 4px 10px;">اضغط على أي عميل لفتح بطاقته وتفاصيل اوردراته.</div>
     <div id="clientsList"></div>
   </section>
@@ -250,7 +250,26 @@
         <textarea id="importBox" placeholder="الصق النص الاحتياطي هنا"></textarea>
       </div>
       <button class="btn btn-dark" onclick="importJSON()">استرجاع البيانات</button>
-      <button class="btn btn-dark btn-block" style="margin-top:24px;" onclick="installApp()">📲 إضافة التطبيق للشاشة الرئيسية</button>
+
+      <div class="section-title" style="margin-top:20px;">🔐 نسخة مشفّرة (أكثر أماناً)</div>
+      <p class="tip">تُشفَّر بياناتك كاملة بكلمة مرور قبل حفظها — لا يقرأها أحد غيرك. مناسبة لمشاركة النسخة.</p>
+      <div class="field">
+        <label>كلمة مرور النسخة (4 أحرف فأكثر)</label>
+        <input type="password" id="encPass" placeholder="كلمة المرور" dir="ltr" autocomplete="new-password">
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="exportEncrypted()">🔒 إنشاء نسخة مشفّرة</button>
+        <button class="btn btn-dark" onclick="importEncrypted()">🔓 فك تشفير واسترجاع</button>
+      </div>
+
+      <div class="section-title" style="margin-top:20px;">🩺 حالة التطبيق</div>
+      <div id="diagBox" class="diag-box">…</div>
+      <div class="actions">
+        <button class="btn btn-dark btn-slim" onclick="copyDiagnostics()">📋 نسخ تقرير فني</button>
+        <button class="btn btn-dark btn-slim" onclick="saveNow()">💾 حفظ فوري</button>
+        <button class="btn btn-dark btn-slim" onclick="restorePreWipe()">↩️ استرجاع ما قبل المسح</button>
+      </div>
+      <button class="btn btn-dark btn-block" id="installBtn" style="margin-top:22px;" onclick="installApp()">📲 تثبيت التطبيق على الجهاز</button>
       <div class="tip" id="appVer" style="text-align:center;margin-top:12px;">الإصدار…</div>
     </div>
   </section>
@@ -280,6 +299,11 @@
 </div>
 
 <div id="toast"></div>
+
+<div id="updateBanner" class="update-banner" style="display:none;">
+  <span>⟳ يتوفر تحديث جديد للتطبيق</span>
+  <button class="btn btn-primary btn-slim" onclick="applyUpdate()">تحديث الآن</button>
+</div>
 
 <div id="pinLock">
   <div class="pin-box" id="pinBox">
