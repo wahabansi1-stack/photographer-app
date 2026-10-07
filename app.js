@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v40";
+const APP_VER = "v41";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -655,6 +655,7 @@ function setSubTab(tab) {
   $$(".sub-tab-btn").forEach(b => b.classList.toggle("active", b.dataset.sub === tab));
   $$(".sub-tab-content").forEach(s => s.classList.toggle("active", s.id === "sub-tab-" + tab));
   renderDashboard();
+  if (tab === "about") renderAbout();
 }
 
 function renderDashboard() {
@@ -1088,6 +1089,7 @@ SCREENS.settings = () => {
   fillSettings();
   fillBackupSettings();
   renderBinCount();
+  renderAbout();
   updateDiag();
 };
 renderAll();
@@ -1465,7 +1467,6 @@ function sendClientWhatsApp(id) {
   const c = clientById(id);
   if (!c) { toast("العميل غير موجود"); return; }
   const num = clientPhone(id) || accountantNum();
-  if (!num) return toast("لا يوجد رقم واتساب للعميل ولا محاسب محفوظ");
   const ids = ordersOfClient(id).map(o => o.id);
   if (!ids.length) { toast("لا يوجد اوردرات لهذا العميل"); return; }
   let msg = buildOrdersReport(ids, "اوردرات العميل: " + c.name);
@@ -1477,7 +1478,7 @@ function sendClientWhatsApp(id) {
       msg += "\n- " + l.title + " (" + fmtDate(l.date) + "): " + fmtMoney(l.amount) + (lrem > 0 ? " · متبقي " + fmtMoney(lrem) : " · مسدد ✓");
     });
   }
-  openWhatsApp(num, msg, c.name);
+  sendOrShare(num, "اوردرات العميل: " + c.name, msg, c.name);
 }
 
 function delClient(id) {
@@ -1938,12 +1939,11 @@ function sendBookingWhatsApp(id) {
   const b = (state.bookings || []).find(x => x.id === id);
   if (!b) return;
   const num = (b.clientId && clientPhone(b.clientId)) || accountantNum();
-  if (!num) return toast("لا يوجد رقم واتساب لهذا الحجز — أضف رقم العميل");
   let txt = `📅 حجز تصوير — ${b.title}\n📅 ${fmtDate(b.date)}${b.time ? " · ⏰ " + b.time : ""}\n`;
   if (b.client) txt += `👥 العميل: ${b.client}\n`;
   if (b.details) txt += `📝 ${b.details}\n`;
   txt += "— أُرسل عبر 📸 دفتر التصوير —";
-  openWhatsApp(num, txt, b.client || b.title);
+  sendOrShare(num, "حجز تصوير", txt, b.client || b.title);
 }
 
 /* ---------- Photographer dues (مستحقات المصورين) ---------- */
@@ -2056,6 +2056,38 @@ function clientPhone(clientId) {
   const c = clientById(clientId);
   return c ? (c.phone || "").replace(/\D/g, "") : "";
 }
+async function shareText(title, text, label) {
+  const plain = String(text || "");
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: title, text: plain });
+      return true;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return true;
+  }
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(plain);
+      toast("تم نسخ النص — الصقه في واتساب أو أي تطبيق");
+      return true;
+    }
+  } catch (_) {}
+  const ta = document.createElement("textarea");
+  ta.value = plain;
+  ta.style.cssText = "position:fixed;opacity:0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); toast("تم نسخ النص"); }
+  catch (_) { toast("تعذر النسخ"); }
+  document.body.removeChild(ta);
+  return true;
+}
+/* واتساب إن توفّر رقم، وإلا مشاركة عامة */
+function sendOrShare(num, title, text, label) {
+  if (num) return openWhatsApp(num, text, label);
+  return shareText(title, text, label);
+}
 function openWhatsApp(num, text, label) {
   toast(label ? "الذهاب لواتساب: " + label : "يتم فتح واتساب...");
   saveSettings(true);
@@ -2101,8 +2133,7 @@ function sendOrderWhatsApp(id) {
   const o = state.orders.find(x => x.id === id);
   if (!o) return;
   const num = clientPhone(o.clientId) || accountantNum();
-  if (!num) return toast("لا يوجد رقم واتساب للعميل ولا محاسب محفوظ");
-  openWhatsApp(num, buildOrdersReport([id], "اوردر"), o.client);
+  sendOrShare(num, "اوردر", buildOrdersReport([id], "اوردر"), o.client);
 }
 
 function sendWhatsAppSelected() {
@@ -2121,8 +2152,7 @@ function sendWhatsAppSelected() {
     num = accountantNum();
     label = "المحاسب";
   }
-  if (!num) return toast("لا يوجد رقم واتساب متاح لإرسال الاوردرات المحددة");
-  openWhatsApp(num, buildOrdersReport(ids, "مراجعة اوردرات"), label);
+  sendOrShare(num, "مراجعة اوردرات", buildOrdersReport(ids, "مراجعة اوردرات"), label);
   cancelSelect();
 }
 
@@ -2750,8 +2780,120 @@ async function copyReport() {
 
 function sendWhatsApp() {
   const num = accountantNum();
-  if (!num) return toast("لا يوجد رقم محاسب محفوظ لإرسال التقرير");
-  openWhatsApp(num, buildReport());
+  sendOrShare(num, "تقرير دفتر التصوير", buildReport(), "التقرير");
+}
+function shareReport() {
+  shareText("تقرير دفتر التصوير", buildReport(), "التقرير");
+}
+
+/* ---------- الوضع التجريبي (بيانات وهمية) ---------- */
+const DEMO_NAMES = ["أم محمد", "خالد الحربي", "نورة القحطاني", "عبدالله المطيري", "سارة الزهراني", "فهد العتيبي", "مريم الدوسري", "ياسر الشمري"];
+const DEMO_SVC = ["تصوير زفاف", "جلسة عائلية", "تصوير منتجات", "تغطية فعالية", "باقة تصوير"];
+function isoOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function seedDemoData() {
+  const clients = DEMO_NAMES.map((n, i) => ({ id: uid(), name: n, phone: "05" + String(10000000 + i * 1357), details: i % 3 === 0 ? "عميل دائم" : "", demo: true }));
+  const orders = [], payments = [], bookings = [], dues = [], ledger = [];
+  for (let i = 0; i < 26; i++) {
+    const c = clients[i % clients.length];
+    const days = i * 4 + (i % 3);
+    const amount = 900 + ((i * 617) % 2400);
+    const oid = uid();
+    orders.push({ id: oid, client: c.name, clientId: c.id, amount, service: DEMO_SVC[i % DEMO_SVC.length], date: isoOffset(days), details: i % 2 ? "" : "تفاصيل تجريبية — موقع التصوير", demo: true });
+    if (i % 3 !== 2) {
+      const pay = Math.round(amount * (i % 4 === 0 ? 1 : 0.5) / 50) * 50;
+      if (pay > 0) payments.push({ id: uid(), client: c.name, amount: pay, method: ["نقدي", "تحويل بنكي", "شبكة", "آبل باي"][i % 4], date: isoOffset(Math.max(0, days - 3)), orderId: oid, details: "", demo: true });
+    }
+  }
+  for (let i = 0; i < 5; i++) {
+    const c = clients[i % clients.length];
+    bookings.push({ id: uid(), clientId: c.id, client: c.name, title: ["حفل زفاف", "جلسة عائلية", "تصوير منتجات", "تغطيةogramas", "معرض صور"][i], date: isoOffset(-(i * 3)), time: ["10:00", "14:30", "17:00", "19:00", "12:00"][i], remind: "day", done: i > 2, details: "", demo: true });
+  }
+  for (let i = 0; i < 4; i++) {
+    dues.push({ id: uid(), name: ["مصوّر者がك", "مصوّر فيديو", "محرّر صور", "مصوّر منتجات"][i], type: ["فوتو", "فيديو", "مونتاج", "منتجات"][i], amount: 400 + i * 250, date: isoOffset(i * 6), details: "", demo: true });
+  }
+  for (let i = 0; i < 3; i++) {
+    const c = clients[i];
+    ledger.push({ id: uid(), clientId: c.id, client: c.name, title: ["سلفة نقدية", "معدات", "أجرة مصور مساعد"][i], amount: 300 + i * 400, paid: i === 0 ? 300 : 0, date: isoOffset(i * 9), details: "", demo: true });
+  }
+  state.clients = state.clients.concat(clients);
+  state.orders = state.orders.concat(orders);
+  state.payments = state.payments.concat(payments);
+  state.bookings = state.bookings.concat(bookings);
+  state.photographerDues = state.photographerDues.concat(dues);
+  state.ledger = state.ledger.concat(ledger);
+  if (!state.settings.targetGoal) state.settings.targetGoal = 25000;
+  state.settings.demoSeen = true;
+  saveNow();
+  renderAll();
+  toast("تم تحميل بيانات تجريبية للتجربة");
+}
+function clearDemoData() {
+  const n = ["clients", "orders", "payments", "bookings", "photographerDues", "ledger"].reduce((a, k) => a + (state[k] || []).filter(x => x.demo).length, 0);
+  if (!n) return toast("لا توجد بيانات تجريبية");
+  if (!confirm("حذف البيانات التجريبية (" + n + " سجل)؟ بياناتك الحقيقية لا تُمس.")) return;
+  ["clients", "orders", "payments", "bookings", "photographerDues", "ledger"].forEach(k => {
+    state[k] = (state[k] || []).filter(x => !x.demo);
+  });
+  state.bin = (state.bin || []).filter(b => !b.item || !b.item.demo);
+  saveNow();
+  renderAll();
+  toast("تم حذف البيانات التجريبية");
+}
+function renderAbout() {
+  const box = $("#aboutBox");
+  if (!box) return;
+  const counts = {
+    clients: state.clients.length, orders: state.orders.length, payments: state.payments.length,
+    bookings: state.bookings.length, dues: (state.photographerDues || []).length, ledger: (state.ledger || []).length
+  };
+  const hasDemo = ["clients", "orders", "payments", "bookings", "photographerDues", "ledger"].some(k => (state[k] || []).some(x => x.demo));
+  const firstSeen = state.settings.firstSeen || (state.settings.firstSeen = todayStr());
+  box.innerHTML = `
+    <div class="about-hero">
+      <div class="about-logo">${ico("camera")}</div>
+      <div>
+        <div class="about-name">دفتر التصوير</div>
+        <div class="about-ver">الإصدار ${APP_VER} · يعمل بدون إنترنت</div>
+      </div>
+    </div>
+    <div class="about-sec">
+      <div class="about-h">${ico("sparkle")} ماذا يقدّم؟</div>
+      <ul class="about-list">
+        <li>تسجيل الاوردرات والتحصيل وربط الدفعات تلقائياً بالمتبقي.</li>
+        <li>بطاقة عميل كاملة: اوردرات، مديونية، PDF، ومشاركة مباشرة.</li>
+        <li>حجوزات مع تنبيهات على الجوال قبل الموعد بيوم.</li>
+        <li>مستحقات المصورين، تقارير لكل فترة، وتصدير Excel.</li>
+        <li>نسخ احتياطي يومي داخل الجهاز + نسخة مشفّرة اختيارية.</li>
+        <li>قفل برقم سري، هدف شهري، ومخططات تحليلية.</li>
+      </ul>
+    </div>
+    <div class="about-sec">
+      <div class="about-h">${ico("shield")} الخصوصية والأمان</div>
+      <p class="about-p">${ico("check")} كل بياناتك تُحفظ <b>محلياً على جهازك فقط</b> — لا خادم ولا حساب ولا تتبّع ولا تحليلات.</p>
+      <p class="about-p">${ico("check")} لا يخرج أي بيان من جهازك إلا بضغطة منك (مشاركة أو نسخة احتياطية).</p>
+      <p class="about-p">${ico("check")} نسخة التشفير (AES-256) اختيارية وت ملف النسخة بكلمة مرور.</p>
+      <p class="about-p">${ico("check")} الصلاحيات المستخدمة: <b>الإشعارات</b> (اختياري لحجوزاتك) و<b>التخزين</b> لحفظ بياناتك. الخط يُحمّل من شبكة خارجية للخطوط فقط.</p>
+      <p class="about-p about-warn">${ico("bell")} على آيفون: ثبّت التطبيق على الشاشة الرئيسية وإلا قد يمنع سفاري التخزين والإشعارات.</p>
+    </div>
+    <div class="about-sec">
+      <div class="about-h">${ico("download")} بياناتك</div>
+      <div class="about-mini">${ico("box")} ${counts.orders} اوردر · ${ico("wallet")} ${counts.payments} دفعة · ${ico("users")} ${counts.clients} عميل · ${ico("calendar")} ${counts.bookings} حجز</div>
+      <div class="about-mini">${ico("target")} ${counts.dues} مستحق · ${ico("file")} ${counts.ledger} بند مديونية · ${ico("clock")}تاريخ الاستخدام:  ${firstSeen}</div>
+    </div>
+    <div class="about-sec">
+      <div class="about-h">${ico("sparkle")} جرّب قبل ما تستخدم</div>
+      <p class="about-p">حمّل بيانات وهمية لتجربة كل الأقسام بدون  على بياناتك الحقيقية، وامسحها بضغطة.</p>
+      <div class="actions">
+        ${hasDemo
+          ? `<button class="btn btn-danger" onclick="clearDemoData()">${ico("trashBin")} حذف البيانات التجريبية</button>`
+          : `<button class="btn btn-primary" onclick="seedDemoData()">${ico("plus")} تحميل بيانات تجريبية</button>`}
+      </div>
+    </div>`;
+  hydrateIcons(box);
 }
 
 /* ---------- نسخ مشفّرة (AES-GCM + PBKDF2) ---------- */
