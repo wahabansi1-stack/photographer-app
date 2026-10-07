@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v45";
+const APP_VER = "v46";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -2900,6 +2900,19 @@ function renderAbout() {
       </div>
     </div>`;
   hydrateIcons(box);
+}
+
+function shareApp() {
+  const url = location.origin + location.pathname;
+  const msg = "تطبيق «دفتر التصوير» للمصورين 📸\n\n" +
+    "✅ أوردرات وتحصيل مع خصم المتبقي تلقائيًا\n" +
+    "✅ بطاقة عميل + فاتورة PDF\n" +
+    "✅ حجوزات مع تنبيه على الجوال\n" +
+    "✅ تقرير لأي فترة + Excel\n" +
+    "✅ يعمل بدون إنترنت والبيانات على جهازك أنت\n\n" +
+    "الرابط: " + url + "\n\n" +
+    "جرّبه أولًا من: التقرير ← عن التطبيق ← بيانات تجريبية";
+  shareText("دفتر التصوير", msg, "التطبيق");
 }
 
 /* ---------- نسخ مشفّرة (AES-GCM + PBKDF2) ---------- */

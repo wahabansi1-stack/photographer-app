@@ -301,7 +301,10 @@
         <button class="btn btn-dark btn-slim" onclick="saveNow()"><span data-ico="download"></span> حفظ فوري</button>
         <button class="btn btn-dark btn-slim" onclick="restorePreWipe()"><span data-ico="refresh"></span> استرجاع ما قبل المسح</button>
       </div>
-      <button class="btn btn-dark btn-block" id="installBtn" style="margin-top:22px;" onclick="installApp()"><span data-ico="download"></span> تثبيت التطبيق على الجهاز</button>
+      <div class="actions" style="margin-top:18px;">
+        <button class="btn btn-primary btn-block" onclick="shareApp()"><span data-ico="share"></span> مشاركة التطبيق مع زميل</button>
+        <button class="btn btn-dark btn-block" id="installBtn" onclick="installApp()"><span data-ico="download"></span> تثبيت التطبيق على الجهاز</button>
+      </div>
       <div class="tip" id="appVer" style="text-align:center;margin-top:12px;">الإصدار…</div>
     </div>
 
