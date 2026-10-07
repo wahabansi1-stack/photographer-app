@@ -142,7 +142,7 @@ function toast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
-const APP_VER = "v41";
+const APP_VER = "v43";
 try {
   const av = document.querySelector("#appVer");
   if (av) av.textContent = "الإصدار " + APP_VER;
@@ -277,6 +277,11 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.4 2"/>',
   send: '<path d="M20.6 3.4 10.4 13.6"/><path d="M20.6 3.4 14.2 20.6l-3.8-7-7-3.8z"/>',
   sparkle: '<path d="M12 3.4 13.9 9 19.6 10.9 13.9 12.8 12 18.4 10.1 12.8 4.4 10.9 10.1 9z"/>',
+  gear: '<circle cx="12" cy="12" r="3.1"/><path d="M19.3 14.5a1.6 1.6 0 0 0 .32 1.77l.06.06a1.9 1.9 0 1 1-2.7 2.7l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.46V21a1.9 1.9 0 1 1-3.8 0v-.11a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a1.9 1.9 0 1 1-2.7-2.7l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.46-1H3a1.9 1.9 0 1 1 0-3.8h.11a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a1.9 1.9 0 1 1 2.7-2.7l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 1-1.46V3a1.9 1.9 0 1 1 3.8 0v.11a1.6 1.6 0 0 0 1 1.46 1.6 1.6 0 0 0 1.77-.32l.06-.06a1.9 1.9 0 1 1 2.7 2.7l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.46 1H21a1.9 1.9 0 1 1 0 3.8h-.11a1.6 1.6 0 0 0-1.46 1z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11.2v5"/><circle cx="12" cy="7.9" r="1" fill="currentColor" stroke="none"/>',
+  upload: '<path d="M12 16V4.6"/><path d="m7.4 9.2 4.6-4.6 4.6 4.6"/><path d="M4.4 16.4v2.2a1.8 1.8 0 0 0 1.8 1.8h11.6a1.8 1.8 0 0 0 1.8-1.8v-2.2"/>',
+  message: '<path d="M20.4 11.6a8 8 0 0 1-8.4 8 9 9 0 0 1-3.6-.8L3.6 20.4l1.6-4.6A8 8 0 1 1 20.4 11.6z"/><path d="M8.6 11.6h.01M12.4 11.6h.01M16.2 11.6h.01" stroke-width="2.4"/>',
+  db: '<ellipse cx="12" cy="5.8" rx="7.6" ry="2.9"/><path d="M4.4 5.8v6.1c0 1.6 3.4 2.9 7.6 2.9s7.6-1.3 7.6-2.9V5.8"/><path d="M4.4 11.9v6c0 1.6 3.4 2.9 7.6 2.9s7.6-1.3 7.6-2.9v-6"/>',
   money: '<rect x="2.6" y="6" width="18.8" height="12" rx="2.6"/><circle cx="12" cy="12" r="2.8"/><path d="M6.4 9.6v4.8M17.6 9.6v4.8"/>'
 };
 function ico(name, cls) {
@@ -365,7 +370,7 @@ function renderHome() {
   const due = o - p;
   const m = $("#monthFilter").value;
   const pb = $("#privacyBtn");
-  if (pb) pb.textContent = state.settings.hideAmounts ? "🙈" : "👁️";
+  if (pb) pb.innerHTML = ico(state.settings.hideAmounts ? "eyeOff" : "eye");
   const cnt = filtered("orders").length;
   const avg = cnt ? o / cnt : 0;
   let html = `
@@ -859,6 +864,7 @@ function savePin() {
 }
 function maybeLock() {
   if (!state.settings.pinOn || !state.settings.pinHash) return;
+  hydrateIcons($("#pinLock"));
   if ($("#pinLock")) {
     pinBuf = "";
     renderPinDots();
