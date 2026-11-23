@@ -1,5 +1,5 @@
-const CACHE = "photographer-ledger-v48";
-const FILES = ["index.html", "style.css", "app.js", "jspdf.umd.min.js", "manifest.json"];
+const CACHE = "photographer-ledger-v49";
+const FILES = ["index.html", "style.css", "app.js", "jspdf.umd.min.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(
